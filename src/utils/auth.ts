@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import type { SignOptions } from "jsonwebtoken";
 import type { AuthUser } from "../types/auth";
+import type { SignOptions } from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
@@ -20,7 +20,7 @@ export const comparePassword = async (
 export const generateJWT = (user: AuthUser): string => {
   return jwt.sign(
     { id: user.id, email: user.email, name: user.name, type: user.type },
-    JWT_SECRET as string,
+    JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN } as SignOptions
   );
 };

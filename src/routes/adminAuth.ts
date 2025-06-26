@@ -9,7 +9,7 @@ import { authenticateAdmin } from "../middleware/adminAuth";
 
 const router = Router();
 
-router.post("/registration-codes", authenticateAdmin, createRegistrationCode);
+router.post("/registration-codes", createRegistrationCode);
 router.delete(
   "/registration-codes/:code",
   authenticateAdmin,

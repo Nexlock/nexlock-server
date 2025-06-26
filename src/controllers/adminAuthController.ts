@@ -7,11 +7,29 @@ import passport from "../config/passport";
 const prisma = new PrismaClient();
 
 export const createRegistrationCode = async (
-  req: Request,
+  req: Request<{}, {}, { secret: string }>,
   res: Response,
   next: NextFunction
 ) => {
   try {
+    const { secret } = req.body;
+    const superAdminSecret = process.env.SUPERADMIN_SECRET;
+
+    if (!secret) {
+      res.status(400).json({ error: "Secret is required" });
+      return;
+    }
+
+    if (!superAdminSecret) {
+      res.status(500).json({ error: "Server configuration error" });
+      return;
+    }
+
+    if (secret !== superAdminSecret) {
+      res.status(403).json({ error: "Invalid super admin secret" });
+      return;
+    }
+
     const code = await prisma.registrationCode.create({
       data: {},
     });
