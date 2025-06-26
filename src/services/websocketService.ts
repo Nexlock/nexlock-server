@@ -19,10 +19,21 @@ interface LockerStatus {
   lastUpdate: Date;
 }
 
+interface AvailableModule {
+  macAddress: string;
+  socketId: string;
+  deviceInfo: string;
+  version: string;
+  capabilities: number;
+  discoveredAt: Date;
+  lastSeen: Date;
+}
+
 class WebSocketService {
   private io: SocketIOServer | null = null;
   private moduleConnections = new Map<string, ModuleConnection>();
   private lockerStatuses = new Map<string, LockerStatus>();
+  private availableModules = new Map<string, AvailableModule>();
 
   initialize(httpServer: HTTPServer) {
     this.io = new SocketIOServer(httpServer, {
@@ -42,6 +53,18 @@ class WebSocketService {
       socket.on("register", (data: { moduleId: string }) => {
         this.registerModule(socket, data.moduleId);
       });
+
+      socket.on(
+        "module-available",
+        (data: {
+          macAddress: string;
+          deviceInfo: string;
+          version: string;
+          capabilities: number;
+        }) => {
+          this.handleModuleAvailable(socket, data);
+        }
+      );
 
       socket.on("ping", (data: { moduleId: string }) => {
         this.handlePing(socket, data.moduleId);
@@ -90,6 +113,11 @@ class WebSocketService {
     setInterval(() => {
       this.pingModules();
     }, 30000);
+
+    // Clean up stale available modules every minute
+    setInterval(() => {
+      this.cleanupStaleModules();
+    }, 60000);
 
     console.log("WebSocket service initialized with Socket.IO");
   }
@@ -287,6 +315,103 @@ class WebSocketService {
     }
   }
 
+  private handleModuleAvailable(
+    socket: Socket,
+    data: {
+      macAddress: string;
+      deviceInfo: string;
+      version: string;
+      capabilities: number;
+    }
+  ) {
+    const availableModule: AvailableModule = {
+      macAddress: data.macAddress,
+      socketId: socket.id,
+      deviceInfo: data.deviceInfo,
+      version: data.version,
+      capabilities: data.capabilities,
+      discoveredAt: this.availableModules.has(data.macAddress)
+        ? this.availableModules.get(data.macAddress)!.discoveredAt
+        : new Date(),
+      lastSeen: new Date(),
+    };
+
+    this.availableModules.set(data.macAddress, availableModule);
+
+    // Broadcast to superadmin clients
+    if (this.io) {
+      this.io.emit("available-modules-update", {
+        modules: Array.from(this.availableModules.values()),
+      });
+    }
+
+    console.log(`Available module: ${data.macAddress} (${data.deviceInfo})`);
+  }
+
+  private cleanupStaleModules() {
+    const now = new Date();
+    const staleThreshold = 30000; // 30 seconds
+
+    for (const [macAddress, module] of this.availableModules.entries()) {
+      const timeSinceLastSeen = now.getTime() - module.lastSeen.getTime();
+
+      if (timeSinceLastSeen > staleThreshold) {
+        this.availableModules.delete(macAddress);
+        console.log(`Removed stale available module: ${macAddress}`);
+
+        // Broadcast update
+        if (this.io) {
+          this.io.emit("available-modules-update", {
+            modules: Array.from(this.availableModules.values()),
+          });
+        }
+      }
+    }
+  }
+
+  configureModule(
+    macAddress: string,
+    moduleId: string,
+    lockerIds: string[]
+  ): boolean {
+    const availableModule = this.availableModules.get(macAddress);
+
+    if (!availableModule) {
+      console.error(`Available module not found: ${macAddress}`);
+      return false;
+    }
+
+    // Find the socket connection
+    const moduleSocket = this.io
+      ?.of("/module")
+      .sockets.get(availableModule.socketId);
+
+    if (!moduleSocket) {
+      console.error(`Socket not found for module: ${macAddress}`);
+      return false;
+    }
+
+    // Send configuration to module
+    moduleSocket.emit("module-configured", {
+      moduleId,
+      lockerIds,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Remove from available modules
+    this.availableModules.delete(macAddress);
+
+    // Broadcast update
+    if (this.io) {
+      this.io.emit("available-modules-update", {
+        modules: Array.from(this.availableModules.values()),
+      });
+    }
+
+    console.log(`Module configured: ${macAddress} -> ${moduleId}`);
+    return true;
+  }
+
   getConnectedModules(): string[] {
     return Array.from(this.moduleConnections.keys());
   }
@@ -300,6 +425,10 @@ class WebSocketService {
     return moduleId
       ? statuses.filter((status) => status.moduleId === moduleId)
       : statuses;
+  }
+
+  getAvailableModules(): AvailableModule[] {
+    return Array.from(this.availableModules.values());
   }
 }
 

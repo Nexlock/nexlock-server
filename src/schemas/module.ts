@@ -72,6 +72,26 @@ export const DeleteModuleSchema = z.object({
   secret: z.string().min(1, "Secret is required"),
 });
 
+export const PairModuleSchema = z.object({
+  macAddress: z.string().min(1, "MAC address is required"),
+  adminId: z.string().min(1, "Admin ID is required"),
+  moduleName: z.string().min(1, "Module name is required"),
+  description: z.string().optional(),
+  location: z.string().optional(),
+  numLockers: z.number().min(1).max(10, "Maximum 10 lockers per module"),
+  secret: z.string().min(1, "Secret is required"),
+});
+
+export const AvailableModuleSchema = z.object({
+  macAddress: z.string(),
+  socketId: z.string(),
+  deviceInfo: z.string(),
+  version: z.string(),
+  capabilities: z.number(),
+  discoveredAt: z.date(),
+  lastSeen: z.date(),
+});
+
 export type CreateModuleRequest = z.infer<typeof CreateModuleSchema>;
 export type CreateAdminWithSystemRequest = z.infer<
   typeof CreateAdminWithSystemSchema
@@ -81,3 +101,5 @@ export type UpdateModuleRequest = z.infer<typeof UpdateModuleSchema>;
 export type ModuleResponse = z.infer<typeof ModuleResponseSchema>;
 export type LockerResponse = z.infer<typeof LockerResponseSchema>;
 export type DeleteModuleRequest = z.infer<typeof DeleteModuleSchema>;
+export type PairModuleRequest = z.infer<typeof PairModuleSchema>;
+export type AvailableModule = z.infer<typeof AvailableModuleSchema>;
