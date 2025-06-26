@@ -3,6 +3,7 @@ import { Strategy as LocalStrategy } from "passport-local";
 import { Strategy as JwtStrategy, ExtractJwt } from "passport-jwt";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "../../generated/prisma";
+import { AuthUserSchema } from "../schemas/auth";
 
 const prisma = new PrismaClient();
 
@@ -25,12 +26,14 @@ passport.use(
           return done(null, false, { message: "Invalid credentials" });
         }
 
-        return done(null, {
+        const authUser = AuthUserSchema.parse({
           id: user.id,
           email: user.email,
           name: user.name,
           type: "user",
         });
+
+        return done(null, authUser);
       } catch (error) {
         return done(error);
       }
@@ -57,12 +60,14 @@ passport.use(
           return done(null, false, { message: "Invalid credentials" });
         }
 
-        return done(null, {
+        const authUser = AuthUserSchema.parse({
           id: admin.id,
           email: admin.email,
           name: admin.name!,
           type: "admin",
         });
+
+        return done(null, authUser);
       } catch (error) {
         return done(error);
       }
@@ -79,29 +84,34 @@ passport.use(
     },
     async (payload, done) => {
       try {
-        if (payload.type === "user") {
+        // Validate payload structure
+        const validatedPayload = AuthUserSchema.parse(payload);
+
+        if (validatedPayload.type === "user") {
           const user = await prisma.user.findUnique({
-            where: { id: payload.id },
+            where: { id: validatedPayload.id },
           });
           if (user) {
-            return done(null, {
+            const authUser = AuthUserSchema.parse({
               id: user.id,
               email: user.email,
               name: user.name,
               type: "user",
             });
+            return done(null, authUser);
           }
-        } else if (payload.type === "admin") {
+        } else if (validatedPayload.type === "admin") {
           const admin = await prisma.admin.findUnique({
-            where: { id: payload.id },
+            where: { id: validatedPayload.id },
           });
           if (admin && admin.email && admin.name && admin.password) {
-            return done(null, {
+            const authUser = AuthUserSchema.parse({
               id: admin.id,
               email: admin.email,
               name: admin.name,
               type: "admin",
             });
+            return done(null, authUser);
           }
         }
         return done(null, false);

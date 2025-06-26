@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { PrismaClient } from "../../generated/prisma";
-import type { UpdateModuleRequest } from "../types/module";
-import type { AuthUser } from "../types/auth";
+import type { UpdateModuleRequest } from "../schemas/module";
+import type { AuthUser } from "../schemas/auth";
 
 const prisma = new PrismaClient();
 
@@ -93,14 +93,6 @@ export const updateModule = async (
 
     if (!user || user.type !== "admin") {
       res.status(401).json({ error: "Admin access required" });
-      return;
-    }
-
-    if (!name && !description && location === undefined) {
-      res.status(400).json({
-        error:
-          "At least one field (name, description, location) must be provided",
-      });
       return;
     }
 

@@ -5,7 +5,7 @@ import type {
   RegisterAdminRequest,
   LoginRequest,
   CreateRegistrationCodeRequest,
-} from "../types/auth";
+} from "../schemas/auth";
 import passport from "../config/passport";
 
 const prisma = new PrismaClient();
@@ -18,11 +18,6 @@ export const createRegistrationCode = async (
   try {
     const { adminId, secret } = req.body;
     const superAdminSecret = process.env.SUPERADMIN_SECRET;
-
-    if (!adminId || !secret) {
-      res.status(400).json({ error: "AdminId and secret are required" });
-      return;
-    }
 
     if (!superAdminSecret) {
       res.status(500).json({ error: "Server configuration error" });
@@ -102,13 +97,6 @@ export const registerAdmin = async (
 ) => {
   try {
     const { email, name, password, registrationCode } = req.body;
-
-    if (!email || !name || !password || !registrationCode) {
-      res.status(400).json({
-        error: "Email, name, password, and registration code are required",
-      });
-      return;
-    }
 
     const regCode = await prisma.registrationCode.findUnique({
       where: { code: registrationCode },

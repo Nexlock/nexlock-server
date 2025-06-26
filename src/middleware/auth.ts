@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import passport from "../config/passport";
-import type { AuthUser } from "../types/auth";
+import type { AuthUser } from "../schemas/auth";
 
 declare global {
   namespace Express {

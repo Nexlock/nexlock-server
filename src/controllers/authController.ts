@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { PrismaClient } from "../../generated/prisma";
 import { hashPassword, generateJWT } from "../utils/auth";
-import type { RegisterUserRequest, LoginRequest } from "../types/auth";
+import type { RegisterUserRequest, LoginRequest } from "../schemas/auth";
 import passport from "../config/passport";
 
 const prisma = new PrismaClient();
@@ -13,11 +13,6 @@ export const registerUser = async (
 ) => {
   try {
     const { email, name, password } = req.body;
-
-    if (!email || !name || !password) {
-      res.status(400).json({ error: "Email, name, and password are required" });
-      return;
-    }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {

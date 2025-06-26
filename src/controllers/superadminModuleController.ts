@@ -5,7 +5,8 @@ import type {
   EditModuleRequest,
   CreateAdminWithSystemRequest,
   LockerResponse,
-} from "../types/module";
+  DeleteModuleRequest,
+} from "../schemas/module";
 
 const prisma = new PrismaClient();
 
@@ -17,13 +18,6 @@ export const createAdminWithSystem = async (
   try {
     const { name, email, modules, secret } = req.body;
     const superAdminSecret = process.env.SUPERADMIN_SECRET;
-
-    if (!modules || modules.length === 0 || !secret) {
-      res.status(400).json({
-        error: "Modules and secret are required",
-      });
-      return;
-    }
 
     if (!superAdminSecret) {
       res.status(500).json({ error: "Server configuration error" });
@@ -127,13 +121,6 @@ export const createModule = async (
     } = req.body;
     const superAdminSecret = process.env.SUPERADMIN_SECRET;
 
-    if (!name || !deviceId || !adminId || !secret) {
-      res.status(400).json({
-        error: "Name, deviceId, adminId, and secret are required",
-      });
-      return;
-    }
-
     if (!superAdminSecret) {
       res.status(500).json({ error: "Server configuration error" });
       return;
@@ -212,7 +199,7 @@ export const createModule = async (
 };
 
 export const deleteModule = async (
-  req: Request<{ id: string }, {}, { secret: string }>,
+  req: Request<{ id: string }, {}, DeleteModuleRequest>,
   res: Response,
   next: NextFunction
 ) => {
@@ -220,11 +207,6 @@ export const deleteModule = async (
     const { id } = req.params;
     const { secret } = req.body;
     const superAdminSecret = process.env.SUPERADMIN_SECRET;
-
-    if (!secret) {
-      res.status(400).json({ error: "Secret is required" });
-      return;
-    }
 
     if (!superAdminSecret) {
       res.status(500).json({ error: "Server configuration error" });
@@ -264,11 +246,6 @@ export const editModuleDeviceId = async (
     const { id } = req.params;
     const { deviceId, secret } = req.body;
     const superAdminSecret = process.env.SUPERADMIN_SECRET;
-
-    if (!deviceId || !secret) {
-      res.status(400).json({ error: "DeviceId and secret are required" });
-      return;
-    }
 
     if (!superAdminSecret) {
       res.status(500).json({ error: "Server configuration error" });

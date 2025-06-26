@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import type { AuthUser } from "../types/auth";
+import { AuthUserSchema, type AuthUser } from "../schemas/auth";
 import type { SignOptions } from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
@@ -18,13 +18,16 @@ export const comparePassword = async (
 };
 
 export const generateJWT = (user: AuthUser): string => {
-  // Ensure all required fields are present
-  if (!user.id || !user.email || !user.name) {
-    throw new Error("Missing required user information for JWT generation");
-  }
+  // Validate user object with Zod
+  const validatedUser = AuthUserSchema.parse(user);
 
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name, type: user.type },
+    {
+      id: validatedUser.id,
+      email: validatedUser.email,
+      name: validatedUser.name,
+      type: validatedUser.type,
+    },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN } as SignOptions
   );
@@ -32,7 +35,8 @@ export const generateJWT = (user: AuthUser): string => {
 
 export const verifyJWT = (token: string): AuthUser | null => {
   try {
-    return jwt.verify(token, JWT_SECRET) as AuthUser;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return AuthUserSchema.parse(decoded);
   } catch {
     return null;
   }
