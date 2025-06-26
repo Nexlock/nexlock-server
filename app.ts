@@ -10,12 +10,13 @@ import authRoutes from "./src/routes/auth";
 import adminAuthRoutes from "./src/routes/adminAuth";
 import superadminModuleRoutes from "./src/routes/superadminModule";
 import adminModuleRoutes from "./src/routes/adminModule";
+import rentalRoutes from "./src/routes/rental";
 import { errorHandler, notFoundHandler } from "./src/middleware/errorHandler";
+import { websocketService } from "./src/services/websocketService";
 
 dotenv.config();
 
 const app: Express = express();
-const server = new Server();
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -36,6 +37,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/admin", adminAuthRoutes);
 app.use("/api/v1/superadmin", superadminModuleRoutes);
 app.use("/api/v1/admin", adminModuleRoutes);
+app.use("/api/v1", rentalRoutes);
 
 // Error handling middleware (must be last)
 app.use(notFoundHandler);
@@ -43,16 +45,26 @@ app.use(errorHandler);
 
 const PORT = Number(process.env.PORT) || 3000;
 
-server.on("connection", (socket) => {
-  console.log("A user connected");
-
-  socket.on("disconnect", () => {
-    console.log("A user disconnected");
-  });
-});
-
 const httpServer = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
-server.attach(httpServer);
+// Initialize Socket.IO
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+// Initialize WebSocket service
+websocketService.initialize(httpServer);
+
+// General Socket.IO connections (for mobile app, web dashboard, etc.)
+io.on("connection", (socket) => {
+  console.log("A user connected:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("A user disconnected:", socket.id);
+  });
+});
