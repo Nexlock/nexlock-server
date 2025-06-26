@@ -36,7 +36,7 @@ model Admin {
 
 model RegistrationCode {
   id        String   @id @default(cuid())
-  code      String   @default(cuid())
+  code      String   @unique @default(cuid())
   isUsed    Boolean  @default(false)
   expiresAt DateTime @default(dbgenerated("(now() + interval '1 day')"))
   createdAt DateTime @default(now())
