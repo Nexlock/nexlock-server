@@ -47,7 +47,7 @@ passport.use(
       try {
         const admin = await prisma.admin.findUnique({ where: { email } });
 
-        if (!admin) {
+        if (!admin || !admin.email || !admin.password) {
           return done(null, false, { message: "Invalid credentials" });
         }
 
@@ -60,7 +60,7 @@ passport.use(
         return done(null, {
           id: admin.id,
           email: admin.email,
-          name: admin.name,
+          name: admin.name!,
           type: "admin",
         });
       } catch (error) {
@@ -95,7 +95,7 @@ passport.use(
           const admin = await prisma.admin.findUnique({
             where: { id: payload.id },
           });
-          if (admin) {
+          if (admin && admin.email && admin.name && admin.password) {
             return done(null, {
               id: admin.id,
               email: admin.email,

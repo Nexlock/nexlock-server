@@ -18,6 +18,11 @@ export interface RegisterAdminRequest {
   registrationCode: string;
 }
 
+export interface CreateRegistrationCodeRequest {
+  adminId: string;
+  secret: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

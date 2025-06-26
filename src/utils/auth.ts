@@ -18,6 +18,11 @@ export const comparePassword = async (
 };
 
 export const generateJWT = (user: AuthUser): string => {
+  // Ensure all required fields are present
+  if (!user.id || !user.email || !user.name) {
+    throw new Error("Missing required user information for JWT generation");
+  }
+
   return jwt.sign(
     { id: user.id, email: user.email, name: user.name, type: user.type },
     JWT_SECRET,

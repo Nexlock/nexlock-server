@@ -8,6 +8,8 @@ import path from "path";
 import passport from "./src/config/passport";
 import authRoutes from "./src/routes/auth";
 import adminAuthRoutes from "./src/routes/adminAuth";
+import superadminModuleRoutes from "./src/routes/superadminModule";
+import adminModuleRoutes from "./src/routes/adminModule";
 import { errorHandler, notFoundHandler } from "./src/middleware/errorHandler";
 
 dotenv.config();
@@ -32,6 +34,8 @@ app.get("/", (_req, res) => {
 // Authentication routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/admin", adminAuthRoutes);
+app.use("/api/v1/superadmin", superadminModuleRoutes);
+app.use("/api/v1/admin", adminModuleRoutes);
 
 // Error handling middleware (must be last)
 app.use(notFoundHandler);

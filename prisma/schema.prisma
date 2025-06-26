@@ -25,13 +25,14 @@ model User {
 }
 
 model Admin {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  modules   Module[]
+  id                String             @id @default(cuid())
+  email             String?            @unique
+  name              String?
+  password          String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  modules           Module[]
+  registrationCodes RegistrationCode[]
 }
 
 model RegistrationCode {
@@ -41,6 +42,8 @@ model RegistrationCode {
   expiresAt DateTime @default(dbgenerated("(now() + interval '1 day')"))
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  admin     Admin?   @relation(fields: [adminId], references: [id])
+  adminId   String?
 }
 
 model Module {
