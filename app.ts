@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import dotenv from "dotenv";
 import bodyParser from "body-parser";
 import cors from "cors";
+import path from "path";
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ app.get("/", (_req, res) => {
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cors());
+app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = Number(process.env.PORT) || 3000;
 
