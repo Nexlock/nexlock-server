@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { PrismaClient } from "../../generated/prisma";
 import { generateNFCCode } from "../utils/nfc";
 import { sendUnlockMessage } from "../services/websocketService";
+import { websocketService } from "../services/websocketService";
 import type {
   CreateRentalRequest,
   ValidateNFCRequest,
@@ -254,6 +255,66 @@ export const getUserRentals = async (
         locker: rental.locker,
       }))
     );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getLockerStatuses = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const user = req.user as AuthUser;
+
+    if (!user || user.type !== "admin") {
+      res.status(401).json({ error: "Admin access required" });
+      return;
+    }
+
+    // Get modules belonging to this admin
+    const modules = await prisma.module.findMany({
+      where: { adminId: user.id },
+      include: {
+        lockers: {
+          select: {
+            id: true,
+            lockerId: true,
+          },
+        },
+      },
+    });
+
+    // Get real-time locker statuses from WebSocket service
+    const allStatuses = websocketService.getLockerStatuses();
+
+    // Filter statuses for modules belonging to this admin
+    const adminModuleIds = modules.map((m) => m.deviceId);
+    const adminStatuses = allStatuses.filter((status) =>
+      adminModuleIds.includes(status.moduleId)
+    );
+
+    // Combine module info with statuses
+    const moduleStatuses = modules.map((module) => ({
+      id: module.id,
+      name: module.name,
+      deviceId: module.deviceId,
+      lockers: module.lockers.map((locker) => {
+        const status = adminStatuses.find(
+          (s) =>
+            s.moduleId === module.deviceId && s.lockerId === locker.lockerId
+        );
+        return {
+          id: locker.id,
+          lockerId: locker.lockerId,
+          occupied: status?.occupied || false,
+          lastUpdate: status?.lastUpdate || null,
+        };
+      }),
+    }));
+
+    res.status(200).json(moduleStatuses);
   } catch (error) {
     next(error);
   }

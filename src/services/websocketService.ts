@@ -2,6 +2,9 @@ import type { Server as HTTPServer } from "http";
 import { Server as SocketIOServer, type Socket } from "socket.io";
 import type { UnlockMessage } from "../schemas/rental";
 import { UnlockMessageSchema } from "../schemas/rental";
+import { PrismaClient } from "../../generated/prisma";
+
+const prisma = new PrismaClient();
 
 interface ModuleConnection {
   socket: Socket;
@@ -9,9 +12,17 @@ interface ModuleConnection {
   lastPing: Date;
 }
 
+interface LockerStatus {
+  moduleId: string;
+  lockerId: string;
+  occupied: boolean;
+  lastUpdate: Date;
+}
+
 class WebSocketService {
   private io: SocketIOServer | null = null;
   private moduleConnections = new Map<string, ModuleConnection>();
+  private lockerStatuses = new Map<string, LockerStatus>();
 
   initialize(httpServer: HTTPServer) {
     this.io = new SocketIOServer(httpServer, {
@@ -36,6 +47,20 @@ class WebSocketService {
         this.handlePing(socket, data.moduleId);
       });
 
+      socket.on(
+        "locker-status",
+        (data: { moduleId: string; lockerId: string; occupied: boolean }) => {
+          this.handleLockerStatus(data);
+        }
+      );
+
+      socket.on(
+        "validate-nfc",
+        async (data: { nfcCode: string; moduleId: string }) => {
+          await this.handleNFCValidation(socket, data);
+        }
+      );
+
       socket.on("disconnect", () => {
         this.handleDisconnect(socket);
       });
@@ -43,6 +68,22 @@ class WebSocketService {
       socket.on("error", (error) => {
         console.error("Socket error:", error);
       });
+    });
+
+    // Main namespace for web clients
+    this.io.on("connection", (socket: Socket) => {
+      console.log("Web client connected:", socket.id);
+
+      socket.on("get-locker-statuses", (data: { moduleId?: string }) => {
+        this.sendLockerStatuses(socket, data.moduleId);
+      });
+
+      socket.on(
+        "admin-unlock",
+        async (data: { moduleId: string; lockerId: string }) => {
+          await this.handleAdminUnlock(data);
+        }
+      );
     });
 
     // Ping modules every 30 seconds
@@ -129,12 +170,136 @@ class WebSocketService {
     }
   }
 
+  private handleLockerStatus(data: {
+    moduleId: string;
+    lockerId: string;
+    occupied: boolean;
+  }) {
+    const statusKey = `${data.moduleId}-${data.lockerId}`;
+
+    this.lockerStatuses.set(statusKey, {
+      moduleId: data.moduleId,
+      lockerId: data.lockerId,
+      occupied: data.occupied,
+      lastUpdate: new Date(),
+    });
+
+    // Broadcast status to web clients
+    if (this.io) {
+      this.io.emit("locker-status-update", {
+        moduleId: data.moduleId,
+        lockerId: data.lockerId,
+        occupied: data.occupied,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    console.log(
+      `Locker status update: Module ${data.moduleId}, Locker ${data.lockerId}, Occupied: ${data.occupied}`
+    );
+  }
+
+  private async handleNFCValidation(
+    socket: Socket,
+    data: { nfcCode: string; moduleId: string }
+  ) {
+    try {
+      // Find active rental with this NFC code
+      const rental = await prisma.lockerRental.findFirst({
+        where: {
+          nfcCode: data.nfcCode,
+          endDate: null,
+        },
+        include: {
+          locker: {
+            include: {
+              module: true,
+            },
+          },
+        },
+      });
+
+      if (!rental) {
+        socket.emit("nfc-validation-result", {
+          valid: false,
+          message: "Invalid or expired NFC code",
+        });
+        return;
+      }
+
+      // Check if NFC code belongs to a locker in the requested module
+      if (rental.locker.module.deviceId !== data.moduleId) {
+        socket.emit("nfc-validation-result", {
+          valid: false,
+          message: "NFC code not valid for this module",
+        });
+        return;
+      }
+
+      socket.emit("nfc-validation-result", {
+        valid: true,
+        lockerId: rental.locker.lockerId,
+        message: "Access granted",
+      });
+
+      console.log(
+        `NFC validation successful: Module ${data.moduleId}, Locker ${rental.locker.lockerId}`
+      );
+    } catch (error) {
+      console.error("NFC validation error:", error);
+      socket.emit("nfc-validation-result", {
+        valid: false,
+        message: "Validation error",
+      });
+    }
+  }
+
+  private sendLockerStatuses(socket: Socket, moduleId?: string) {
+    const statuses = Array.from(this.lockerStatuses.values());
+    const filteredStatuses = moduleId
+      ? statuses.filter((status) => status.moduleId === moduleId)
+      : statuses;
+
+    socket.emit("locker-statuses", filteredStatuses);
+  }
+
+  private async handleAdminUnlock(data: {
+    moduleId: string;
+    lockerId: string;
+  }) {
+    try {
+      const success = this.sendUnlockMessage({
+        moduleId: data.moduleId,
+        lockerId: data.lockerId,
+        action: "unlock",
+        timestamp: new Date(),
+      });
+
+      if (this.io) {
+        this.io.emit("admin-unlock-result", {
+          moduleId: data.moduleId,
+          lockerId: data.lockerId,
+          success,
+        });
+      }
+    } catch (error) {
+      console.error("Admin unlock error:", error);
+    }
+  }
+
   getConnectedModules(): string[] {
     return Array.from(this.moduleConnections.keys());
   }
 
   getIO(): SocketIOServer | null {
     return this.io;
+  }
+
+  getLockerStatuses(moduleId?: string): LockerStatus[] {
+    const statuses = Array.from(this.lockerStatuses.values());
+    return moduleId
+      ? statuses.filter((status) => status.moduleId === moduleId)
+      : statuses;
   }
 }
 
