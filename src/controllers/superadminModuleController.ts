@@ -315,10 +315,24 @@ export const getAvailableModules = async (
   next: NextFunction
 ) => {
   try {
-    const secret = req.headers.authorization?.replace("Bearer ", "");
+    const authHeader = req.headers.authorization;
+    const secret = authHeader?.startsWith("Bearer ")
+      ? authHeader.substring(7)
+      : authHeader;
     const superAdminSecret = process.env.SUPERADMIN_SECRET;
 
-    if (!superAdminSecret || secret !== superAdminSecret) {
+    // Debug logging (remove in production)
+    console.log("Auth header:", authHeader);
+    console.log("Extracted secret:", secret);
+    console.log("Expected secret exists:", !!superAdminSecret);
+    console.log("Secrets match:", secret === superAdminSecret);
+
+    if (!superAdminSecret) {
+      res.status(500).json({ error: "Server configuration error" });
+      return;
+    }
+
+    if (secret !== superAdminSecret) {
       res.status(403).json({ error: "Invalid super admin secret" });
       return;
     }

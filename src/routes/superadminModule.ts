@@ -18,6 +18,26 @@ import {
 
 const router = Router();
 
+// Test endpoint for secret verification
+router.get("/test-auth", (req, res) => {
+  const authHeader = req.headers.authorization;
+  const secret = authHeader?.startsWith("Bearer ")
+    ? authHeader.substring(7)
+    : authHeader;
+  const superAdminSecret = process.env.SUPERADMIN_SECRET;
+
+  console.log("Test endpoint - Auth header:", authHeader);
+  console.log("Test endpoint - Secret:", secret);
+  console.log("Test endpoint - Expected secret exists:", !!superAdminSecret);
+
+  if (!superAdminSecret || secret !== superAdminSecret) {
+    res.status(403).json({ error: "Invalid super admin secret" });
+    return;
+  }
+
+  res.status(200).json({ message: "Authentication successful" });
+});
+
 router.post(
   "/admins",
   validateBody(CreateAdminWithSystemSchema),
