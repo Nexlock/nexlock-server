@@ -127,6 +127,12 @@ class WebSocketService {
   }
 
   private async handleMessage(ws: WebSocket, message: any, isModule: boolean) {
+    console.log("Received message:", {
+      type: message.type,
+      isModule,
+      data: message,
+    });
+
     switch (message.type) {
       case "register":
         if (isModule) {
@@ -169,7 +175,12 @@ class WebSocketService {
         }
         break;
       default:
-        console.log("Unknown message type:", message.type);
+        console.log(
+          "Unknown message type:",
+          message.type,
+          "from",
+          isModule ? "module" : "web client"
+        );
     }
   }
 
@@ -286,7 +297,15 @@ class WebSocketService {
   }
 
   private handleModuleAvailable(ws: WebSocket, message: any) {
-    const { macAddress, deviceInfo, version, capabilities } = message;
+    const { macAddress, deviceInfo, version, capabilities, timestamp } =
+      message;
+
+    console.log("Processing module_available:", {
+      macAddress,
+      deviceInfo,
+      version,
+      capabilities,
+    });
 
     const availableModule: AvailableModule = {
       macAddress,
@@ -302,13 +321,16 @@ class WebSocketService {
 
     this.availableModules.set(macAddress, availableModule);
 
+    console.log(`Available module updated: ${macAddress} (${deviceInfo})`);
+    console.log(`Total available modules: ${this.availableModules.size}`);
+
     // Broadcast to web clients
     this.broadcastToWebClients({
       type: "available_modules_update",
       modules: Array.from(this.availableModules.values()),
     });
 
-    console.log(`Available module: ${macAddress} (${deviceInfo})`);
+    console.log(`Broadcasted to ${this.webClients.size} web clients`);
   }
 
   private handleDisconnect(ws: WebSocket) {
@@ -428,8 +450,10 @@ class WebSocketService {
   }
 
   private generateWSId(ws: WebSocket): string {
-    // Generate a unique ID for WebSocket connection
-    return `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Generate a unique ID for WebSocket connection using connection details
+    const remoteAddress = (ws as any)._socket?.remoteAddress || "unknown";
+    const remotePort = (ws as any)._socket?.remotePort || Math.random();
+    return `ws_${Date.now()}_${remoteAddress}_${remotePort}`;
   }
 
   sendLockUnlockMessage(message: LockUnlockMessage): boolean {

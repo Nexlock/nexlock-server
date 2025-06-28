@@ -321,12 +321,6 @@ export const getAvailableModules = async (
       : authHeader;
     const superAdminSecret = process.env.SUPERADMIN_SECRET;
 
-    // Debug logging (remove in production)
-    console.log("Auth header:", authHeader);
-    console.log("Extracted secret:", secret);
-    console.log("Expected secret exists:", !!superAdminSecret);
-    console.log("Secrets match:", secret === superAdminSecret);
-
     if (!superAdminSecret) {
       res.status(500).json({ error: "Server configuration error" });
       return;
@@ -338,6 +332,8 @@ export const getAvailableModules = async (
     }
 
     const availableModules = websocketService.getAvailableModules();
+    console.log(`API: Returning ${availableModules.length} available modules`);
+
     res.status(200).json({ modules: availableModules });
   } catch (error) {
     next(error);

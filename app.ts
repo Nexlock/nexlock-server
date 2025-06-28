@@ -17,6 +17,18 @@ import { websocketService } from "./src/services/websocketService";
 
 dotenv.config();
 
+// Validate critical environment variables
+const requiredEnvVars = ['SUPERADMIN_SECRET'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+  console.error('Missing required environment variables:', missingEnvVars);
+  console.error('Please set these variables in your .env file or environment');
+  process.exit(1);
+}
+
+console.log('✓ All required environment variables are set');
+
 const app: Express = express();
 
 // Middleware
