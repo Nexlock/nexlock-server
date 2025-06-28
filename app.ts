@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import bodyParser from "body-parser";
 import cors from "cors";
 import path from "path";
+import https from "https";
+import fs from "fs";
 import passport from "./src/config/passport";
 import authRoutes from "./src/routes/auth";
 import adminAuthRoutes from "./src/routes/adminAuth";
@@ -20,7 +22,14 @@ const app: Express = express();
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  })
+);
 app.use(express.static(path.join(__dirname, "public")));
 
 // Initialize Passport
@@ -44,11 +53,44 @@ app.use(errorHandler);
 
 const PORT = Number(process.env.PORT) || 3000;
 
-const httpServer = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+let httpServer;
+
+// Check if SSL certificates exist for HTTPS
+const sslKeyPath = process.env.SSL_KEY_PATH;
+const sslCertPath = process.env.SSL_CERT_PATH;
+
+if (
+  sslKeyPath &&
+  sslCertPath &&
+  fs.existsSync(sslKeyPath) &&
+  fs.existsSync(sslCertPath)
+) {
+  // Create HTTPS server
+  const httpsOptions = {
+    key: fs.readFileSync(sslKeyPath),
+    cert: fs.readFileSync(sslCertPath),
+  };
+
+  httpServer = https.createServer(httpsOptions, app);
+  console.log("Starting HTTPS server with SSL certificates");
+} else {
+  // Create HTTP server
+  httpServer = app.listen(PORT, () => {
+    console.log(`HTTP Server is running on port ${PORT}`);
+  });
+}
+
+// For HTTPS server, listen on the specified port
+if (httpServer.constructor.name === "Server") {
+  httpServer.listen(PORT, () => {
+    console.log(`HTTPS Server is running on port ${PORT}`);
+  });
+}
 
 // Initialize WebSocket service
 websocketService.initialize(httpServer);
 
-console.log("WebSocket server is available at ws://localhost:3000/ws");
+const protocol = sslKeyPath && sslCertPath ? "wss" : "ws";
+console.log(
+  `WebSocket server is available at ${protocol}://localhost:${PORT}/ws`
+);

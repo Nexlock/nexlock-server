@@ -43,19 +43,30 @@ class WebSocketService {
     this.wss = new WebSocketServer({
       server: httpServer,
       path: "/ws",
+      perMessageDeflate: false,
+      clientTracking: true,
     });
 
     this.wss.on("connection", (ws: WebSocket, request) => {
-      console.log("New WebSocket connection:", request.url);
+      const clientIP = request.socket.remoteAddress;
+      const userAgent = request.headers["user-agent"];
+
+      console.log("New WebSocket connection:", {
+        url: request.url,
+        ip: clientIP,
+        userAgent: userAgent?.substring(0, 100),
+      });
 
       // Determine if this is a module or web client connection
-      const userAgent = request.headers["user-agent"];
       const isModule = Boolean(
         userAgent?.includes("ESP32") || userAgent?.includes("Arduino")
       );
 
       if (!isModule) {
         this.webClients.add(ws);
+        console.log(
+          `Web client connected. Total web clients: ${this.webClients.size}`
+        );
       }
 
       ws.on("message", (data: Buffer) => {
@@ -64,25 +75,42 @@ class WebSocketService {
           this.handleMessage(ws, message, isModule);
         } catch (error) {
           console.error("Failed to parse WebSocket message:", error);
-          ws.send(JSON.stringify({ error: "Invalid message format" }));
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ error: "Invalid message format" }));
+          }
         }
       });
 
-      ws.on("close", () => {
+      ws.on("close", (code, reason) => {
+        console.log("WebSocket disconnected:", {
+          code,
+          reason: reason.toString(),
+          isModule,
+        });
         this.handleDisconnect(ws);
       });
 
       ws.on("error", (error) => {
-        console.error("WebSocket error:", error);
+        console.error("WebSocket error:", {
+          error: error.message,
+          isModule,
+          clientIP,
+        });
       });
 
       // Send initial connection acknowledgment
-      ws.send(
-        JSON.stringify({
-          type: "connected",
-          timestamp: new Date().toISOString(),
-        })
-      );
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            type: "connected",
+            timestamp: new Date().toISOString(),
+          })
+        );
+      }
+    });
+
+    this.wss.on("error", (error) => {
+      console.error("WebSocket Server error:", error);
     });
 
     // Ping modules every 30 seconds
