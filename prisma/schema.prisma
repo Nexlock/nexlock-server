@@ -13,3 +13,70 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  name         String
+  password     String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  LockerRental LockerRental[]
+}
+
+model Admin {
+  id                String             @id @default(cuid())
+  email             String?            @unique
+  name              String?
+  password          String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  modules           Module[]
+  registrationCodes RegistrationCode[]
+}
+
+model RegistrationCode {
+  id        String   @id @default(cuid())
+  code      String   @unique @default(cuid())
+  isUsed    Boolean  @default(false)
+  expiresAt DateTime @default(dbgenerated("(now() + interval '1 day')"))
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  admin     Admin?   @relation(fields: [adminId], references: [id])
+  adminId   String?
+}
+
+model Module {
+  id          String   @id @default(cuid())
+  name        String
+  deviceId    String   @unique
+  description String?
+  location    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  admin       Admin?   @relation(fields: [adminId], references: [id])
+  adminId     String?
+  lockers     Locker[]
+}
+
+model Locker {
+  id           String         @id @default(cuid())
+  lockerId     String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  module       Module         @relation(fields: [moduleId], references: [id])
+  moduleId     String
+  LockerRental LockerRental[]
+}
+
+model LockerRental {
+  id        String    @id @default(cuid())
+  lockerId  String
+  userId    String
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+  expiresAt DateTime  @default(dbgenerated("(now() + interval '6 hours')"))
+  isLocked  Boolean   @default(true)
+  locker    Locker    @relation(fields: [lockerId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+}
