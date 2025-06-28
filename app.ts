@@ -72,18 +72,13 @@ if (
   };
 
   httpServer = https.createServer(httpsOptions, app);
-  console.log("Starting HTTPS server with SSL certificates");
+  httpServer.listen(PORT, () => {
+    console.log(`HTTPS Server is running on port ${PORT}`);
+  });
 } else {
   // Create HTTP server
   httpServer = app.listen(PORT, () => {
     console.log(`HTTP Server is running on port ${PORT}`);
-  });
-}
-
-// For HTTPS server, listen on the specified port
-if (httpServer.constructor.name === "Server") {
-  httpServer.listen(PORT, () => {
-    console.log(`HTTPS Server is running on port ${PORT}`);
   });
 }
 
