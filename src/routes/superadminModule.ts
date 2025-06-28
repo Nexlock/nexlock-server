@@ -18,25 +18,6 @@ import {
 
 const router = Router();
 
-// Echo endpoint for debugging
-router.get("/echo", (req, res) => {
-  const authHeader = req.headers.authorization;
-  const secret = authHeader?.startsWith("Bearer ")
-    ? authHeader.substring(7)
-    : authHeader;
-  const superAdminSecret = process.env.SUPERADMIN_SECRET;
-
-  res.status(200).json({
-    message: "Echo endpoint",
-    receivedSecret: secret,
-    hasEnvSecret: !!superAdminSecret,
-    envSecretLength: superAdminSecret?.length || 0,
-    secretsMatch: secret === superAdminSecret,
-    headers: req.headers,
-    timestamp: new Date().toISOString(),
-  });
-});
-
 // Test endpoint for secret verification
 router.get("/test-auth", (req, res) => {
   const authHeader = req.headers.authorization;
