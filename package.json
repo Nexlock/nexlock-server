@@ -1,7 +1,6 @@
 {
   "name": "nexlock-server",
   "module": "index.ts",
-  "type": "module",
   "private": true,
   "devDependencies": {
     "@types/bun": "latest",
@@ -14,7 +13,7 @@
     "typescript": "^5.8.3"
   },
   "scripts": {
-    "dev": "nodemon src/index.ts",
+    "dev": "nodemon --exec ts-node app.ts",
     "build": "tsc",
     "start": "node dist/index.js"
   },

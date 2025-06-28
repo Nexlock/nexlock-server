@@ -1,7 +1,8 @@
 import { Router } from "express";
 import {
   createRental,
-  validateNFC,
+  lockUnlockRental,
+  extendRental,
   checkoutRental,
   getUserRentals,
 } from "../controllers/rentalController";
@@ -9,7 +10,8 @@ import { authenticateUser } from "../middleware/auth";
 import { validateBody } from "../utils/validation";
 import {
   CreateRentalSchema,
-  ValidateNFCSchema,
+  LockUnlockRentalSchema,
+  ExtendRentalSchema,
   CheckoutRentalSchema,
 } from "../schemas/rental";
 
@@ -24,13 +26,22 @@ router.post(
 );
 router.get("/rentals", authenticateUser, getUserRentals);
 router.post(
+  "/rentals/lock-unlock",
+  authenticateUser,
+  validateBody(LockUnlockRentalSchema),
+  lockUnlockRental
+);
+router.post(
+  "/rentals/extend",
+  authenticateUser,
+  validateBody(ExtendRentalSchema),
+  extendRental
+);
+router.post(
   "/rentals/checkout",
   authenticateUser,
   validateBody(CheckoutRentalSchema),
   checkoutRental
 );
-
-// Module routes (for ESP32 validation - no auth required)
-router.post("/validate-nfc", validateBody(ValidateNFCSchema), validateNFC);
 
 export default router;

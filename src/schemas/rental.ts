@@ -4,9 +4,14 @@ export const CreateRentalSchema = z.object({
   lockerId: z.string().min(1, "Locker ID is required"),
 });
 
-export const ValidateNFCSchema = z.object({
-  nfcCode: z.string().min(1, "NFC code is required"),
-  moduleId: z.string().min(1, "Module ID is required"),
+export const LockUnlockRentalSchema = z.object({
+  rentalId: z.string().min(1, "Rental ID is required"),
+  action: z.enum(["lock", "unlock"]),
+});
+
+export const ExtendRentalSchema = z.object({
+  rentalId: z.string().min(1, "Rental ID is required"),
+  hours: z.number().min(1).max(24, "Extension must be between 1-24 hours"),
 });
 
 export const CheckoutRentalSchema = z.object({
@@ -16,10 +21,11 @@ export const CheckoutRentalSchema = z.object({
 export const RentalResponseSchema = z.object({
   id: z.string(),
   lockerId: z.string(),
-  nfcCode: z.string(),
   userId: z.string(),
   startDate: z.date(),
   endDate: z.date().nullable(),
+  expiresAt: z.date(),
+  isLocked: z.boolean(),
   locker: z.object({
     id: z.string(),
     lockerId: z.string(),
@@ -31,22 +37,24 @@ export const RentalResponseSchema = z.object({
   }),
 });
 
-export const NFCValidationResponseSchema = z.object({
-  valid: z.boolean(),
-  lockerId: z.string().optional(),
-  message: z.string(),
-});
-
-export const UnlockMessageSchema = z.object({
+export const LockUnlockMessageSchema = z.object({
   moduleId: z.string(),
   lockerId: z.string(),
-  action: z.literal("unlock"),
+  action: z.enum(["lock", "unlock"]),
+  timestamp: z.date(),
+});
+
+export const ModuleStatusUpdateSchema = z.object({
+  moduleId: z.string(),
+  lockerId: z.string(),
+  status: z.enum(["locked", "unlocked"]),
   timestamp: z.date(),
 });
 
 export type CreateRentalRequest = z.infer<typeof CreateRentalSchema>;
-export type ValidateNFCRequest = z.infer<typeof ValidateNFCSchema>;
+export type LockUnlockRentalRequest = z.infer<typeof LockUnlockRentalSchema>;
+export type ExtendRentalRequest = z.infer<typeof ExtendRentalSchema>;
 export type CheckoutRentalRequest = z.infer<typeof CheckoutRentalSchema>;
 export type RentalResponse = z.infer<typeof RentalResponseSchema>;
-export type NFCValidationResponse = z.infer<typeof NFCValidationResponseSchema>;
-export type UnlockMessage = z.infer<typeof UnlockMessageSchema>;
+export type LockUnlockMessage = z.infer<typeof LockUnlockMessageSchema>;
+export type ModuleStatusUpdate = z.infer<typeof ModuleStatusUpdateSchema>;

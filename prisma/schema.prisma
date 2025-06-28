@@ -72,10 +72,11 @@ model Locker {
 model LockerRental {
   id        String    @id @default(cuid())
   lockerId  String
-  nfcCode   String
   userId    String
   startDate DateTime  @default(now())
   endDate   DateTime?
+  expiresAt DateTime  @default(dbgenerated("(now() + interval '6 hours')"))
+  isLocked  Boolean   @default(true)
   locker    Locker    @relation(fields: [lockerId], references: [id])
   user      User      @relation(fields: [userId], references: [id])
 }

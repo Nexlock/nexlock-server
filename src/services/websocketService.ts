@@ -1,48 +1,58 @@
 import type { Server as HTTPServer } from "http";
-import { Server as SocketIOServer, type Socket } from "socket.io";
-import type { UnlockMessage } from "../schemas/rental";
-import { UnlockMessageSchema } from "../schemas/rental";
+import { WebSocketServer, WebSocket } from "ws";
+import type { LockUnlockMessage, ModuleStatusUpdate } from "../schemas/rental";
+import {
+  LockUnlockMessageSchema,
+  ModuleStatusUpdateSchema,
+} from "../schemas/rental";
+import { PrismaClient } from "../../generated/prisma";
+
+const prisma = new PrismaClient();
 
 interface ModuleConnection {
-  socket: Socket;
+  ws: WebSocket;
   moduleId: string;
   lastPing: Date;
 }
 
 class WebSocketService {
-  private io: SocketIOServer | null = null;
+  private wss: WebSocketServer | null = null;
   private moduleConnections = new Map<string, ModuleConnection>();
 
   initialize(httpServer: HTTPServer) {
-    this.io = new SocketIOServer(httpServer, {
-      cors: {
-        origin: "*",
-        methods: ["GET", "POST"],
-      },
-      path: "/socket.io/",
+    this.wss = new WebSocketServer({
+      server: httpServer,
+      path: "/ws",
     });
 
-    // Module namespace for ESP32 connections
-    const moduleNamespace = this.io.of("/module");
+    this.wss.on("connection", (ws: WebSocket, request) => {
+      console.log("New WebSocket connection:", request.url);
 
-    moduleNamespace.on("connection", (socket: Socket) => {
-      console.log("New module connection:", socket.id);
-
-      socket.on("register", (data: { moduleId: string }) => {
-        this.registerModule(socket, data.moduleId);
+      ws.on("message", (data: Buffer) => {
+        try {
+          const message = JSON.parse(data.toString());
+          this.handleMessage(ws, message);
+        } catch (error) {
+          console.error("Failed to parse WebSocket message:", error);
+          ws.send(JSON.stringify({ error: "Invalid message format" }));
+        }
       });
 
-      socket.on("ping", (data: { moduleId: string }) => {
-        this.handlePing(socket, data.moduleId);
+      ws.on("close", () => {
+        this.handleDisconnect(ws);
       });
 
-      socket.on("disconnect", () => {
-        this.handleDisconnect(socket);
+      ws.on("error", (error) => {
+        console.error("WebSocket error:", error);
       });
 
-      socket.on("error", (error) => {
-        console.error("Socket error:", error);
-      });
+      // Send initial connection acknowledgment
+      ws.send(
+        JSON.stringify({
+          type: "connected",
+          timestamp: new Date().toISOString(),
+        })
+      );
     });
 
     // Ping modules every 30 seconds
@@ -50,38 +60,110 @@ class WebSocketService {
       this.pingModules();
     }, 30000);
 
-    console.log("WebSocket service initialized with Socket.IO");
+    console.log("WebSocket service initialized");
   }
 
-  private registerModule(socket: Socket, moduleId: string) {
+  private async handleMessage(ws: WebSocket, message: any) {
+    switch (message.type) {
+      case "register":
+        this.registerModule(ws, message.moduleId);
+        break;
+      case "ping":
+        this.handlePing(ws, message.moduleId);
+        break;
+      case "pong":
+        this.handlePong(ws, message.moduleId);
+        break;
+      case "status_update":
+        await this.handleStatusUpdate(message);
+        break;
+      default:
+        console.log("Unknown message type:", message.type);
+    }
+  }
+
+  private registerModule(ws: WebSocket, moduleId: string) {
+    if (!moduleId) {
+      ws.send(JSON.stringify({ error: "Module ID is required" }));
+      return;
+    }
+
     this.moduleConnections.set(moduleId, {
-      socket,
+      ws,
       moduleId,
       lastPing: new Date(),
     });
 
-    socket.emit("registered", {
-      moduleId,
-      timestamp: new Date().toISOString(),
-    });
+    ws.send(
+      JSON.stringify({
+        type: "registered",
+        moduleId,
+        timestamp: new Date().toISOString(),
+      })
+    );
 
-    console.log(`Module ${moduleId} registered with socket ${socket.id}`);
+    console.log(`Module ${moduleId} registered`);
   }
 
-  private handlePing(socket: Socket, moduleId: string) {
+  private handlePing(ws: WebSocket, moduleId: string) {
     const connection = this.moduleConnections.get(moduleId);
     if (connection) {
       connection.lastPing = new Date();
-      socket.emit("pong", {
-        timestamp: new Date().toISOString(),
-      });
+      ws.send(
+        JSON.stringify({
+          type: "pong",
+          timestamp: new Date().toISOString(),
+        })
+      );
     }
   }
 
-  private handleDisconnect(socket: Socket) {
+  private handlePong(ws: WebSocket, moduleId: string) {
+    const connection = this.moduleConnections.get(moduleId);
+    if (connection) {
+      connection.lastPing = new Date();
+    }
+  }
+
+  private async handleStatusUpdate(message: any) {
+    try {
+      const statusUpdate: ModuleStatusUpdate = ModuleStatusUpdateSchema.parse({
+        moduleId: message.moduleId,
+        lockerId: message.lockerId,
+        status: message.status,
+        timestamp: new Date(message.timestamp),
+      });
+
+      // Update the rental record with the current lock status
+      const isLocked = statusUpdate.status === "locked";
+
+      await prisma.lockerRental.updateMany({
+        where: {
+          locker: {
+            lockerId: statusUpdate.lockerId,
+            module: {
+              deviceId: statusUpdate.moduleId,
+            },
+          },
+          endDate: null,
+        },
+        data: {
+          isLocked,
+        },
+      });
+
+      console.log(
+        `Updated locker ${statusUpdate.lockerId} status to ${statusUpdate.status}`
+      );
+    } catch (error) {
+      console.error("Failed to handle status update:", error);
+    }
+  }
+
+  private handleDisconnect(ws: WebSocket) {
     // Remove module connection
     for (const [moduleId, connection] of this.moduleConnections.entries()) {
-      if (connection.socket.id === socket.id) {
+      if (connection.ws === ws) {
         this.moduleConnections.delete(moduleId);
         console.log(`Module ${moduleId} disconnected`);
         break;
@@ -96,35 +178,49 @@ class WebSocketService {
 
       // Remove connections that haven't pinged in 2 minutes
       if (timeSinceLastPing > 120000) {
-        connection.socket.disconnect();
+        if (connection.ws.readyState === WebSocket.OPEN) {
+          connection.ws.close();
+        }
         this.moduleConnections.delete(moduleId);
         console.log(`Module ${moduleId} timed out`);
+      } else {
+        // Send ping to active connections
+        if (connection.ws.readyState === WebSocket.OPEN) {
+          connection.ws.send(
+            JSON.stringify({
+              type: "ping",
+              timestamp: now.toISOString(),
+            })
+          );
+        }
       }
     }
   }
 
-  sendUnlockMessage(message: UnlockMessage): boolean {
+  sendLockUnlockMessage(message: LockUnlockMessage): boolean {
     try {
-      const validatedMessage = UnlockMessageSchema.parse(message);
+      const validatedMessage = LockUnlockMessageSchema.parse(message);
       const connection = this.moduleConnections.get(validatedMessage.moduleId);
 
-      if (!connection || !connection.socket.connected) {
+      if (!connection || connection.ws.readyState !== WebSocket.OPEN) {
         console.error(`Module ${validatedMessage.moduleId} not connected`);
         return false;
       }
 
-      connection.socket.emit("unlock", {
-        lockerId: validatedMessage.lockerId,
-        action: validatedMessage.action,
-        timestamp: validatedMessage.timestamp.toISOString(),
-      });
+      connection.ws.send(
+        JSON.stringify({
+          type: validatedMessage.action,
+          lockerId: validatedMessage.lockerId,
+          timestamp: validatedMessage.timestamp.toISOString(),
+        })
+      );
 
       console.log(
-        `Unlock message sent to module ${validatedMessage.moduleId} for locker ${validatedMessage.lockerId}`
+        `${validatedMessage.action} message sent to module ${validatedMessage.moduleId} for locker ${validatedMessage.lockerId}`
       );
       return true;
     } catch (error) {
-      console.error("Failed to send unlock message:", error);
+      console.error("Failed to send lock/unlock message:", error);
       return false;
     }
   }
@@ -133,13 +229,26 @@ class WebSocketService {
     return Array.from(this.moduleConnections.keys());
   }
 
-  getIO(): SocketIOServer | null {
-    return this.io;
+  getWebSocketServer(): WebSocketServer | null {
+    return this.wss;
+  }
+
+  broadcast(message: any) {
+    if (!this.wss) return;
+
+    const messageStr = JSON.stringify(message);
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(messageStr);
+      }
+    });
   }
 }
 
 export const websocketService = new WebSocketService();
 
-export const sendUnlockMessage = (message: UnlockMessage): Promise<boolean> => {
-  return Promise.resolve(websocketService.sendUnlockMessage(message));
+export const sendLockUnlockMessage = (
+  message: LockUnlockMessage
+): Promise<boolean> => {
+  return Promise.resolve(websocketService.sendLockUnlockMessage(message));
 };

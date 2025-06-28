@@ -1,10 +1,10 @@
 import type { Request, Response, NextFunction } from "express";
 import { PrismaClient } from "../../generated/prisma";
-import { generateNFCCode } from "../utils/nfc";
-import { sendUnlockMessage } from "../services/websocketService";
+import { sendLockUnlockMessage } from "../services/websocketService";
 import type {
   CreateRentalRequest,
-  ValidateNFCRequest,
+  LockUnlockRentalRequest,
+  ExtendRentalRequest,
   CheckoutRentalRequest,
 } from "../schemas/rental";
 import type { AuthUser } from "../schemas/auth";
@@ -47,15 +47,16 @@ export const createRental = async (
       return;
     }
 
-    // Generate NFC code
-    const nfcCode = generateNFCCode();
+    // Create rental with 6-hour expiry
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 6);
 
-    // Create rental
     const rental = await prisma.lockerRental.create({
       data: {
         lockerId,
-        nfcCode,
         userId: user.id,
+        expiresAt,
+        isLocked: true,
       },
       include: {
         locker: {
@@ -75,10 +76,11 @@ export const createRental = async (
     res.status(201).json({
       id: rental.id,
       lockerId: rental.lockerId,
-      nfcCode: rental.nfcCode,
       userId: rental.userId,
       startDate: rental.startDate,
       endDate: rental.endDate,
+      expiresAt: rental.expiresAt,
+      isLocked: rental.isLocked,
       locker: rental.locker,
     });
   } catch (error) {
@@ -86,18 +88,25 @@ export const createRental = async (
   }
 };
 
-export const validateNFC = async (
-  req: Request<{}, {}, ValidateNFCRequest>,
+export const lockUnlockRental = async (
+  req: Request<{}, {}, LockUnlockRentalRequest>,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const { nfcCode, moduleId } = req.body;
+    const { rentalId, action } = req.body;
+    const user = req.user as AuthUser;
 
-    // Find active rental with this NFC code
+    if (!user || user.type !== "user") {
+      res.status(401).json({ error: "User access required" });
+      return;
+    }
+
+    // Find the rental
     const rental = await prisma.lockerRental.findFirst({
       where: {
-        nfcCode,
+        id: rentalId,
+        userId: user.id,
         endDate: null,
       },
       include: {
@@ -110,26 +119,141 @@ export const validateNFC = async (
     });
 
     if (!rental) {
-      res.status(200).json({
-        valid: false,
-        message: "Invalid or expired NFC code",
+      res.status(404).json({ error: "Active rental not found" });
+      return;
+    }
+
+    // Check if rental has expired
+    if (rental.expiresAt < new Date()) {
+      res.status(403).json({
+        error:
+          "Rental has expired. Please extend your rental time to continue using the locker.",
       });
       return;
     }
 
-    // Check if NFC code belongs to a locker in the requested module
-    if (rental.locker.module.id !== moduleId) {
-      res.status(200).json({
-        valid: false,
-        message: "NFC code not valid for this module",
-      });
+    // Update rental lock status
+    const isLocked = action === "lock";
+    const updatedRental = await prisma.lockerRental.update({
+      where: { id: rentalId },
+      data: { isLocked },
+      include: {
+        locker: {
+          include: {
+            module: {
+              select: {
+                id: true,
+                name: true,
+                deviceId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Send lock/unlock message to module
+    const success = await sendLockUnlockMessage({
+      moduleId: rental.locker.module.deviceId,
+      lockerId: rental.locker.lockerId,
+      action,
+      timestamp: new Date(),
+    });
+
+    if (!success) {
+      res
+        .status(503)
+        .json({ error: "Failed to communicate with locker module" });
       return;
     }
 
     res.status(200).json({
-      valid: true,
-      lockerId: rental.locker.lockerId,
-      message: "NFC code is valid",
+      id: updatedRental.id,
+      lockerId: updatedRental.lockerId,
+      userId: updatedRental.userId,
+      startDate: updatedRental.startDate,
+      endDate: updatedRental.endDate,
+      expiresAt: updatedRental.expiresAt,
+      isLocked: updatedRental.isLocked,
+      locker: updatedRental.locker,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const extendRental = async (
+  req: Request<{}, {}, ExtendRentalRequest>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { rentalId, hours } = req.body;
+    const user = req.user as AuthUser;
+
+    if (!user || user.type !== "user") {
+      res.status(401).json({ error: "User access required" });
+      return;
+    }
+
+    // Find the rental
+    const rental = await prisma.lockerRental.findFirst({
+      where: {
+        id: rentalId,
+        userId: user.id,
+        endDate: null,
+      },
+      include: {
+        locker: {
+          include: {
+            module: {
+              select: {
+                id: true,
+                name: true,
+                deviceId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!rental) {
+      res.status(404).json({ error: "Active rental not found" });
+      return;
+    }
+
+    // Extend the expiry time
+    const newExpiresAt = new Date(rental.expiresAt);
+    newExpiresAt.setHours(newExpiresAt.getHours() + hours);
+
+    const updatedRental = await prisma.lockerRental.update({
+      where: { id: rentalId },
+      data: { expiresAt: newExpiresAt },
+      include: {
+        locker: {
+          include: {
+            module: {
+              select: {
+                id: true,
+                name: true,
+                deviceId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      id: updatedRental.id,
+      lockerId: updatedRental.lockerId,
+      userId: updatedRental.userId,
+      startDate: updatedRental.startDate,
+      endDate: updatedRental.endDate,
+      expiresAt: updatedRental.expiresAt,
+      isLocked: updatedRental.isLocked,
+      locker: updatedRental.locker,
     });
   } catch (error) {
     next(error);
@@ -171,10 +295,13 @@ export const checkoutRental = async (
       return;
     }
 
-    // Update rental with end date
+    // Update rental with end date and ensure it's unlocked
     const updatedRental = await prisma.lockerRental.update({
       where: { id: rentalId },
-      data: { endDate: new Date() },
+      data: {
+        endDate: new Date(),
+        isLocked: false,
+      },
       include: {
         locker: {
           include: {
@@ -190,8 +317,8 @@ export const checkoutRental = async (
       },
     });
 
-    // Send unlock message to module
-    await sendUnlockMessage({
+    // Send unlock message to module for checkout
+    await sendLockUnlockMessage({
       moduleId: rental.locker.module.deviceId,
       lockerId: rental.locker.lockerId,
       action: "unlock",
@@ -201,10 +328,11 @@ export const checkoutRental = async (
     res.status(200).json({
       id: updatedRental.id,
       lockerId: updatedRental.lockerId,
-      nfcCode: updatedRental.nfcCode,
       userId: updatedRental.userId,
       startDate: updatedRental.startDate,
       endDate: updatedRental.endDate,
+      expiresAt: updatedRental.expiresAt,
+      isLocked: updatedRental.isLocked,
       locker: updatedRental.locker,
     });
   } catch (error) {
@@ -247,10 +375,11 @@ export const getUserRentals = async (
       rentals.map((rental) => ({
         id: rental.id,
         lockerId: rental.lockerId,
-        nfcCode: rental.nfcCode,
         userId: rental.userId,
         startDate: rental.startDate,
         endDate: rental.endDate,
+        expiresAt: rental.expiresAt,
+        isLocked: rental.isLocked,
         locker: rental.locker,
       }))
     );

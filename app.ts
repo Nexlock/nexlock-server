@@ -1,6 +1,5 @@
 import express from "express";
 import type { Express } from "express";
-import { Server } from "socket.io";
 import dotenv from "dotenv";
 import bodyParser from "body-parser";
 import cors from "cors";
@@ -49,22 +48,7 @@ const httpServer = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
-// Initialize Socket.IO
-const io = new Server(httpServer, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
-});
-
 // Initialize WebSocket service
 websocketService.initialize(httpServer);
 
-// General Socket.IO connections (for mobile app, web dashboard, etc.)
-io.on("connection", (socket) => {
-  console.log("A user connected:", socket.id);
-
-  socket.on("disconnect", () => {
-    console.log("A user disconnected:", socket.id);
-  });
-});
+console.log("WebSocket server is available at ws://localhost:3000/ws");
