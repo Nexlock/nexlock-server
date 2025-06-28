@@ -1,6 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import { PrismaClient } from "../../generated/prisma";
-import { sendLockUnlockMessage } from "../services/websocketService";
+import {
+  sendLockUnlockMessage,
+  websocketService,
+} from "../services/websocketService";
 import type {
   CreateRentalRequest,
   LockUnlockRentalRequest,
