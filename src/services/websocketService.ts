@@ -15,9 +15,28 @@ interface ModuleConnection {
   lastPing: Date;
 }
 
+interface LockerStatus {
+  moduleId: string;
+  lockerId: string;
+  occupied: boolean;
+  lastUpdate: Date;
+}
+
+interface AvailableModule {
+  macAddress: string;
+  socketId: string;
+  deviceInfo: string;
+  version: string;
+  capabilities: number;
+  discoveredAt: Date;
+  lastSeen: Date;
+}
+
 class WebSocketService {
   private wss: WebSocketServer | null = null;
   private moduleConnections = new Map<string, ModuleConnection>();
+  private lockerStatuses = new Map<string, LockerStatus>();
+  private availableModules = new Map<string, AvailableModule>();
 
   initialize(httpServer: HTTPServer) {
     this.wss = new WebSocketServer({
@@ -52,6 +71,22 @@ class WebSocketService {
           type: "connected",
           timestamp: new Date().toISOString(),
         })
+      );
+    });
+
+    // Main namespace for web clients
+    this.io.on("connection", (socket: Socket) => {
+      console.log("Web client connected:", socket.id);
+
+      socket.on("get-locker-statuses", (data: { moduleId?: string }) => {
+        this.sendLockerStatuses(socket, data.moduleId);
+      });
+
+      socket.on(
+        "admin-unlock",
+        async (data: { moduleId: string; lockerId: string }) => {
+          await this.handleAdminUnlock(data);
+        }
       );
     });
 
@@ -225,6 +260,220 @@ class WebSocketService {
     }
   }
 
+  private handleLockerStatus(data: {
+    moduleId: string;
+    lockerId: string;
+    occupied: boolean;
+  }) {
+    const statusKey = `${data.moduleId}-${data.lockerId}`;
+
+    this.lockerStatuses.set(statusKey, {
+      moduleId: data.moduleId,
+      lockerId: data.lockerId,
+      occupied: data.occupied,
+      lastUpdate: new Date(),
+    });
+
+    // Broadcast status to web clients
+    if (this.io) {
+      this.io.emit("locker-status-update", {
+        moduleId: data.moduleId,
+        lockerId: data.lockerId,
+        occupied: data.occupied,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    console.log(
+      `Locker status update: Module ${data.moduleId}, Locker ${data.lockerId}, Occupied: ${data.occupied}`
+    );
+  }
+
+  private async handleNFCValidation(
+    socket: Socket,
+    data: { nfcCode: string; moduleId: string }
+  ) {
+    try {
+      // Find active rental with this NFC code
+      const rental = await prisma.lockerRental.findFirst({
+        where: {
+          nfcCode: data.nfcCode,
+          endDate: null,
+        },
+        include: {
+          locker: {
+            include: {
+              module: true,
+            },
+          },
+        },
+      });
+
+      if (!rental) {
+        socket.emit("nfc-validation-result", {
+          valid: false,
+          message: "Invalid or expired NFC code",
+        });
+        return;
+      }
+
+      // Check if NFC code belongs to a locker in the requested module
+      if (rental.locker.module.deviceId !== data.moduleId) {
+        socket.emit("nfc-validation-result", {
+          valid: false,
+          message: "NFC code not valid for this module",
+        });
+        return;
+      }
+
+      socket.emit("nfc-validation-result", {
+        valid: true,
+        lockerId: rental.locker.lockerId,
+        message: "Access granted",
+      });
+
+      console.log(
+        `NFC validation successful: Module ${data.moduleId}, Locker ${rental.locker.lockerId}`
+      );
+    } catch (error) {
+      console.error("NFC validation error:", error);
+      socket.emit("nfc-validation-result", {
+        valid: false,
+        message: "Validation error",
+      });
+    }
+  }
+
+  private sendLockerStatuses(socket: Socket, moduleId?: string) {
+    const statuses = Array.from(this.lockerStatuses.values());
+    const filteredStatuses = moduleId
+      ? statuses.filter((status) => status.moduleId === moduleId)
+      : statuses;
+
+    socket.emit("locker-statuses", filteredStatuses);
+  }
+
+  private async handleAdminUnlock(data: {
+    moduleId: string;
+    lockerId: string;
+  }) {
+    try {
+      const success = this.sendUnlockMessage({
+        moduleId: data.moduleId,
+        lockerId: data.lockerId,
+        action: "unlock",
+        timestamp: new Date(),
+      });
+
+      if (this.io) {
+        this.io.emit("admin-unlock-result", {
+          moduleId: data.moduleId,
+          lockerId: data.lockerId,
+          success,
+        });
+      }
+    } catch (error) {
+      console.error("Admin unlock error:", error);
+    }
+  }
+
+  private handleModuleAvailable(
+    socket: Socket,
+    data: {
+      macAddress: string;
+      deviceInfo: string;
+      version: string;
+      capabilities: number;
+    }
+  ) {
+    const availableModule: AvailableModule = {
+      macAddress: data.macAddress,
+      socketId: socket.id,
+      deviceInfo: data.deviceInfo,
+      version: data.version,
+      capabilities: data.capabilities,
+      discoveredAt: this.availableModules.has(data.macAddress)
+        ? this.availableModules.get(data.macAddress)!.discoveredAt
+        : new Date(),
+      lastSeen: new Date(),
+    };
+
+    this.availableModules.set(data.macAddress, availableModule);
+
+    // Broadcast to superadmin clients
+    if (this.io) {
+      this.io.emit("available-modules-update", {
+        modules: Array.from(this.availableModules.values()),
+      });
+    }
+
+    console.log(`Available module: ${data.macAddress} (${data.deviceInfo})`);
+  }
+
+  private cleanupStaleModules() {
+    const now = new Date();
+    const staleThreshold = 30000; // 30 seconds
+
+    for (const [macAddress, module] of this.availableModules.entries()) {
+      const timeSinceLastSeen = now.getTime() - module.lastSeen.getTime();
+
+      if (timeSinceLastSeen > staleThreshold) {
+        this.availableModules.delete(macAddress);
+        console.log(`Removed stale available module: ${macAddress}`);
+
+        // Broadcast update
+        if (this.io) {
+          this.io.emit("available-modules-update", {
+            modules: Array.from(this.availableModules.values()),
+          });
+        }
+      }
+    }
+  }
+
+  configureModule(
+    macAddress: string,
+    moduleId: string,
+    lockerIds: string[]
+  ): boolean {
+    const availableModule = this.availableModules.get(macAddress);
+
+    if (!availableModule) {
+      console.error(`Available module not found: ${macAddress}`);
+      return false;
+    }
+
+    // Find the socket connection
+    const moduleSocket = this.io
+      ?.of("/module")
+      .sockets.get(availableModule.socketId);
+
+    if (!moduleSocket) {
+      console.error(`Socket not found for module: ${macAddress}`);
+      return false;
+    }
+
+    // Send configuration to module
+    moduleSocket.emit("module-configured", {
+      moduleId,
+      lockerIds,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Remove from available modules
+    this.availableModules.delete(macAddress);
+
+    // Broadcast update
+    if (this.io) {
+      this.io.emit("available-modules-update", {
+        modules: Array.from(this.availableModules.values()),
+      });
+    }
+
+    console.log(`Module configured: ${macAddress} -> ${moduleId}`);
+    return true;
+  }
+
   getConnectedModules(): string[] {
     return Array.from(this.moduleConnections.keys());
   }
@@ -242,6 +491,17 @@ class WebSocketService {
         client.send(messageStr);
       }
     });
+  }
+
+  getLockerStatuses(moduleId?: string): LockerStatus[] {
+    const statuses = Array.from(this.lockerStatuses.values());
+    return moduleId
+      ? statuses.filter((status) => status.moduleId === moduleId)
+      : statuses;
+  }
+
+  getAvailableModules(): AvailableModule[] {
+    return Array.from(this.availableModules.values());
   }
 }
 

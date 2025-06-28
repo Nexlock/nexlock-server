@@ -51,6 +51,27 @@ export const ModuleStatusUpdateSchema = z.object({
   timestamp: z.date(),
 });
 
+export const LockerStatusSchema = z.object({
+  moduleId: z.string(),
+  lockerId: z.string(),
+  occupied: z.boolean(),
+  lastUpdate: z.date(),
+});
+
+export const ModuleStatusSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  deviceId: z.string(),
+  lockers: z.array(
+    z.object({
+      id: z.string(),
+      lockerId: z.string(),
+      occupied: z.boolean(),
+      lastUpdate: z.date().nullable(),
+    })
+  ),
+});
+
 export type CreateRentalRequest = z.infer<typeof CreateRentalSchema>;
 export type LockUnlockRentalRequest = z.infer<typeof LockUnlockRentalSchema>;
 export type ExtendRentalRequest = z.infer<typeof ExtendRentalSchema>;

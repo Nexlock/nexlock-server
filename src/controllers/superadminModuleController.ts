@@ -6,7 +6,10 @@ import type {
   CreateAdminWithSystemRequest,
   LockerResponse,
   DeleteModuleRequest,
+  PairModuleRequest,
 } from "../schemas/module";
+import { websocketService } from "../services/websocketService";
+import { generateNFCCode } from "../utils/nfc";
 
 const prisma = new PrismaClient();
 
@@ -300,6 +303,142 @@ export const editModuleDeviceId = async (
       createdAt: updatedModule.createdAt,
       updatedAt: updatedModule.updatedAt,
       admin: updatedModule.admin,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAvailableModules = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const secret = req.headers.authorization?.replace("Bearer ", "");
+    const superAdminSecret = process.env.SUPERADMIN_SECRET;
+
+    if (!superAdminSecret || secret !== superAdminSecret) {
+      res.status(403).json({ error: "Invalid super admin secret" });
+      return;
+    }
+
+    const availableModules = websocketService.getAvailableModules();
+    res.status(200).json({ modules: availableModules });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const pairModule = async (
+  req: Request<{}, {}, PairModuleRequest>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const {
+      macAddress,
+      adminId,
+      moduleName,
+      description,
+      location,
+      numLockers,
+      secret,
+    } = req.body;
+    const superAdminSecret = process.env.SUPERADMIN_SECRET;
+
+    if (!superAdminSecret || secret !== superAdminSecret) {
+      res.status(403).json({ error: "Invalid super admin secret" });
+      return;
+    }
+
+    // Check if admin exists
+    const admin = await prisma.admin.findUnique({
+      where: { id: adminId },
+    });
+
+    if (!admin) {
+      res.status(404).json({ error: "Admin not found" });
+      return;
+    }
+
+    // Generate unique module ID and device ID
+    const moduleId = generateNFCCode(); // Reuse NFC generation for unique IDs
+    const deviceId = `DEV_${moduleId.substring(0, 8).toUpperCase()}`;
+
+    // Check if deviceId already exists (very unlikely but safety check)
+    const existingModule = await prisma.module.findUnique({
+      where: { deviceId },
+    });
+
+    if (existingModule) {
+      res
+        .status(409)
+        .json({ error: "Generated device ID collision, try again" });
+      return;
+    }
+
+    // Create module in database
+    const module = await prisma.module.create({
+      data: {
+        name: moduleName,
+        deviceId,
+        description,
+        location,
+        adminId,
+      },
+    });
+
+    // Generate locker IDs
+    const lockerIds: string[] = [];
+    const lockers: LockerResponse[] = [];
+
+    for (let i = 1; i <= numLockers; i++) {
+      const lockerId = `L${i.toString().padStart(2, "0")}`;
+      lockerIds.push(lockerId);
+
+      const locker = await prisma.locker.create({
+        data: {
+          lockerId,
+          moduleId: module.id,
+        },
+      });
+
+      lockers.push({
+        id: locker.id,
+        lockerId: locker.lockerId,
+        createdAt: locker.createdAt,
+        updatedAt: locker.updatedAt,
+      });
+    }
+
+    // Send configuration to the physical module
+    const configSuccess = websocketService.configureModule(
+      macAddress,
+      deviceId,
+      lockerIds
+    );
+
+    if (!configSuccess) {
+      // Rollback database changes
+      await prisma.module.delete({ where: { id: module.id } });
+      res.status(400).json({ error: "Failed to configure physical module" });
+      return;
+    }
+
+    res.status(201).json({
+      module: {
+        id: module.id,
+        name: module.name,
+        deviceId: module.deviceId,
+        description: module.description,
+        location: module.location,
+        adminId: module.adminId,
+        createdAt: module.createdAt,
+        updatedAt: module.updatedAt,
+        lockers,
+      },
+      message: "Module paired and configured successfully",
     });
   } catch (error) {
     next(error);

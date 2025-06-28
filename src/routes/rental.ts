@@ -5,8 +5,10 @@ import {
   extendRental,
   checkoutRental,
   getUserRentals,
+  getLockerStatuses,
 } from "../controllers/rentalController";
 import { authenticateUser } from "../middleware/auth";
+import { authenticateAdmin } from "../middleware/adminAuth";
 import { validateBody } from "../utils/validation";
 import {
   CreateRentalSchema,

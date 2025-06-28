@@ -4,6 +4,8 @@ import {
   deleteModule,
   editModuleDeviceId,
   createAdminWithSystem,
+  getAvailableModules,
+  pairModule,
 } from "../controllers/superadminModuleController";
 import { validateBody } from "../utils/validation";
 import {
@@ -11,6 +13,7 @@ import {
   CreateModuleSchema,
   DeleteModuleSchema,
   EditModuleSchema,
+  PairModuleSchema,
 } from "../schemas/module";
 
 const router = Router();
@@ -27,5 +30,7 @@ router.patch(
   validateBody(EditModuleSchema),
   editModuleDeviceId
 );
+router.get("/available-modules", getAvailableModules);
+router.post("/pair-module", validateBody(PairModuleSchema), pairModule);
 
 export default router;
