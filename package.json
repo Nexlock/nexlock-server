@@ -1,6 +1,6 @@
 {
   "name": "nexlock-server",
-  "module": "index.ts",
+  "module": "app.ts",
   "private": true,
   "devDependencies": {
     "@types/bun": "latest",
@@ -15,7 +15,7 @@
   "scripts": {
     "dev": "nodemon --exec ts-node app.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/app.js",
     "postinstall": "prisma generate"
   },
   "dependencies": {
