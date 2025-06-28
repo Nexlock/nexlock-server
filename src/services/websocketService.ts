@@ -58,9 +58,13 @@ class WebSocketService {
       });
 
       // Determine if this is a module or web client connection
-      const isModule = Boolean(
+      // Check user agent first, but also check first message type
+      const isModuleByUserAgent = Boolean(
         userAgent?.includes("ESP32") || userAgent?.includes("Arduino")
       );
+
+      // We'll determine this dynamically based on the first message
+      let isModule = isModuleByUserAgent;
 
       if (!isModule) {
         this.webClients.add(ws);
@@ -72,6 +76,17 @@ class WebSocketService {
       ws.on("message", (data: Buffer) => {
         try {
           const message = JSON.parse(data.toString());
+
+          // Dynamically detect if this is a module based on message type
+          if (!isModuleByUserAgent && this.isModuleMessage(message.type)) {
+            isModule = true;
+            // Remove from web clients and treat as module
+            this.webClients.delete(ws);
+            console.log(
+              `Connection reclassified as module based on message type: ${message.type}`
+            );
+          }
+
           this.handleMessage(ws, message, isModule);
         } catch (error) {
           console.error("Failed to parse WebSocket message:", error);
@@ -561,6 +576,18 @@ class WebSocketService {
 
   getAvailableModules(): AvailableModule[] {
     return Array.from(this.availableModules.values());
+  }
+
+  private isModuleMessage(messageType: string): boolean {
+    const moduleMessageTypes = [
+      "module_available",
+      "register",
+      "ping",
+      "pong",
+      "status_update",
+      "locker_status",
+    ];
+    return moduleMessageTypes.includes(messageType);
   }
 }
 
