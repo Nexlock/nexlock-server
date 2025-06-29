@@ -84,7 +84,7 @@ export const PairModuleSchema = z.object({
   moduleName: z.string().min(1, "Module name is required"),
   description: z.string().optional(),
   location: z.string().optional(),
-  numLockers: z.number().min(1).max(10, "Maximum 10 lockers per module"),
+  numLockers: z.coerce.number().min(1).max(10, "Maximum 10 lockers per module"),
   secret: z.string().min(1, "Secret is required"),
 });
 

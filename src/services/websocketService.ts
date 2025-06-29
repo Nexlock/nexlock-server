@@ -357,6 +357,7 @@ class WebSocketService {
     if (existingModule && existingModule.wsId === wsId) {
       // Just update the lastSeen timestamp
       existingModule.lastSeen = new Date();
+      console.log(`Updated lastSeen for existing module: ${macAddress}`);
       return;
     }
 
@@ -550,6 +551,10 @@ class WebSocketService {
 
     if (!availableModule) {
       console.error(`Available module not found: ${macAddress}`);
+      console.log(
+        "Available modules:",
+        Array.from(this.availableModules.keys())
+      );
       return false;
     }
 
@@ -566,6 +571,9 @@ class WebSocketService {
       console.error(`WebSocket not found for module: ${macAddress}`);
       return false;
     }
+
+    console.log(`Configuring module ${macAddress} with moduleId: ${moduleId}`);
+    console.log(`Locker IDs: ${lockerIds.join(", ")}`);
 
     // Send configuration to module
     moduleWS.send(

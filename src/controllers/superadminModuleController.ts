@@ -373,9 +373,11 @@ export const pairModule = async (
       return;
     }
 
-    // Generate unique module ID and device ID
-    const moduleId = generateNFCCode(); // Reuse NFC generation for unique IDs
-    const deviceId = `DEV_${moduleId.substring(0, 8).toUpperCase()}`;
+    // Generate unique device ID (for human reference)
+    const deviceId = `DEV_${macAddress
+      .replace(/:/g, "")
+      .substring(0, 8)
+      .toUpperCase()}`;
 
     // Check if deviceId already exists (very unlikely but safety check)
     const existingModule = await prisma.module.findUnique({
@@ -389,7 +391,7 @@ export const pairModule = async (
       return;
     }
 
-    // Create module in database
+    // Create module in database - the database will generate a cuid for module.id
     const module = await prisma.module.create({
       data: {
         name: moduleName,
@@ -423,11 +425,15 @@ export const pairModule = async (
       });
     }
 
+    console.log(
+      `Pairing module: MAC=${macAddress}, DB_ID=${module.id}, DeviceID=${deviceId}`
+    );
+
     // Send configuration to the physical module using the database module.id
-    // This ensures WebSocket routing consistency
+    // The ESP32 will save this module.id as its moduleId in preferences
     const configSuccess = websocketService.configureModule(
       macAddress,
-      module.id, // ✅ Use database module.id for WebSocket communication
+      module.id, // ✅ ESP32 will use this cuid as its moduleId
       lockerIds
     );
 
@@ -437,6 +443,8 @@ export const pairModule = async (
       res.status(400).json({ error: "Failed to configure physical module" });
       return;
     }
+
+    console.log(`Module paired successfully: ${macAddress} -> ${module.id}`);
 
     res.status(201).json({
       module: {
@@ -453,6 +461,7 @@ export const pairModule = async (
       message: "Module paired and configured successfully",
     });
   } catch (error) {
+    console.error("Error in pairModule:", error);
     next(error);
   }
 };
