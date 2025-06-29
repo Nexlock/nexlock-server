@@ -189,6 +189,11 @@ class WebSocketService {
           this.handleConfigurationError(message);
         }
         break;
+      case "get_available_modules":
+        if (!isModule) {
+          this.sendAvailableModulesToClient(ws);
+        }
+        break;
       case "get_locker_statuses":
         if (!isModule) {
           this.sendLockerStatuses(ws, message.moduleId);
@@ -692,6 +697,22 @@ class WebSocketService {
       "locker_status",
     ];
     return moduleMessageTypes.includes(messageType);
+  }
+
+  private sendAvailableModulesToClient(ws: WebSocket) {
+    const availableModules = Array.from(this.availableModules.values());
+    console.log(
+      `Sending ${availableModules.length} available modules to client`
+    );
+
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(
+        JSON.stringify({
+          type: "available_modules_update",
+          modules: availableModules,
+        })
+      );
+    }
   }
 }
 
