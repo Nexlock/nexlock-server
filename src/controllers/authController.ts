@@ -75,3 +75,28 @@ export const loginUser = (
     }
   )(req, res, next);
 };
+
+export const getCurrentUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    // User is already authenticated by middleware
+    const user = req.user;
+
+    if (!user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      type: user.type,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

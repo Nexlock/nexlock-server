@@ -155,9 +155,9 @@ export const lockUnlockRental = async (
       },
     });
 
-    // Send lock/unlock message to module
+    // Send lock/unlock message to module using module.id for WebSocket routing
     const success = await sendLockUnlockMessage({
-      moduleId: rental.locker.module.deviceId,
+      moduleId: rental.locker.module.id, // ✅ Use raw module ID for WebSocket communication
       lockerId: rental.locker.lockerId,
       action,
       timestamp: new Date(),
@@ -320,9 +320,9 @@ export const checkoutRental = async (
       },
     });
 
-    // Send unlock message to module for checkout
+    // Send unlock message to module for checkout using module.id for WebSocket routing
     await sendLockUnlockMessage({
-      moduleId: rental.locker.module.deviceId,
+      moduleId: rental.locker.module.id, // ✅ Use raw module ID for WebSocket communication
       lockerId: rental.locker.lockerId,
       action: "unlock",
       timestamp: new Date(),
@@ -420,8 +420,8 @@ export const getLockerStatuses = async (
     // Get real-time locker statuses from WebSocket service
     const allStatuses = websocketService.getLockerStatuses();
 
-    // Filter statuses for modules belonging to this admin
-    const adminModuleIds = modules.map((m) => m.deviceId);
+    // Filter statuses for modules belonging to this admin using module.id
+    const adminModuleIds = modules.map((m) => m.id); // ✅ Use module.id for WebSocket lookups
     const adminStatuses = allStatuses.filter((status) =>
       adminModuleIds.includes(status.moduleId)
     );
@@ -433,8 +433,7 @@ export const getLockerStatuses = async (
       deviceId: module.deviceId,
       lockers: module.lockers.map((locker) => {
         const status = adminStatuses.find(
-          (s) =>
-            s.moduleId === module.deviceId && s.lockerId === locker.lockerId
+          (s) => s.moduleId === module.id && s.lockerId === locker.lockerId // ✅ Use module.id for status matching
         );
         return {
           id: locker.id,

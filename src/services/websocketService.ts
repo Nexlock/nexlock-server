@@ -254,12 +254,13 @@ class WebSocketService {
       // Update the rental record with the current lock status
       const isLocked = statusUpdate.status === "locked";
 
+      // Find the module by ID (not deviceId) to match WebSocket connection mapping
       await prisma.lockerRental.updateMany({
         where: {
           locker: {
             lockerId: statusUpdate.lockerId,
             module: {
-              deviceId: statusUpdate.moduleId,
+              id: statusUpdate.moduleId, // ✅ Use module.id for consistency
             },
           },
           endDate: null,
@@ -279,7 +280,7 @@ class WebSocketService {
       });
 
       console.log(
-        `Updated locker ${statusUpdate.lockerId} status to ${statusUpdate.status}`
+        `Updated locker ${statusUpdate.lockerId} status to ${statusUpdate.status} for module ${statusUpdate.moduleId}`
       );
     } catch (error) {
       console.error("Failed to handle status update:", error);
@@ -478,6 +479,10 @@ class WebSocketService {
 
       if (!connection || connection.ws.readyState !== WebSocket.OPEN) {
         console.error(`Module ${validatedMessage.moduleId} not connected`);
+        console.log(
+          "Available connections:",
+          Array.from(this.moduleConnections.keys())
+        );
         return false;
       }
 

@@ -422,10 +422,11 @@ export const pairModule = async (
       });
     }
 
-    // Send configuration to the physical module
+    // Send configuration to the physical module using the database module.id
+    // This ensures WebSocket routing consistency
     const configSuccess = websocketService.configureModule(
       macAddress,
-      deviceId,
+      module.id, // ✅ Use database module.id for WebSocket communication
       lockerIds
     );
 

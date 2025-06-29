@@ -4,6 +4,7 @@ import {
   deleteRegistrationCode,
   registerAdmin,
   loginAdmin,
+  getCurrentAdmin,
 } from "../controllers/adminAuthController";
 import { authenticateAdmin } from "../middleware/adminAuth";
 import { validateBody } from "../utils/validation";
@@ -27,5 +28,6 @@ router.delete(
 );
 router.post("/register", validateBody(RegisterAdminSchema), registerAdmin);
 router.post("/login", validateBody(LoginSchema), loginAdmin);
+router.get("/me", authenticateAdmin, getCurrentAdmin);
 
 export default router;
