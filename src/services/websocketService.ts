@@ -179,6 +179,16 @@ class WebSocketService {
           this.handleModuleAvailable(ws, message);
         }
         break;
+      case "configuration_success":
+        if (isModule) {
+          this.handleConfigurationSuccess(message);
+        }
+        break;
+      case "configuration_error":
+        if (isModule) {
+          this.handleConfigurationError(message);
+        }
+        break;
       case "get_locker_statuses":
         if (!isModule) {
           this.sendLockerStatuses(ws, message.moduleId);
@@ -199,11 +209,43 @@ class WebSocketService {
     }
   }
 
+  private handleConfigurationSuccess(message: any) {
+    const { moduleId, macAddress } = message;
+    console.log(`Configuration success confirmed for module ${moduleId} (MAC: ${macAddress})`);
+    
+    // Broadcast success to web clients
+    this.broadcastToWebClients({
+      type: "module_configuration_success",
+      moduleId,
+      macAddress,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  private handleConfigurationError(message: any) {
+    const { error, expectedMac, actualMac } = message;
+    console.error(`Configuration error: ${error}`, {
+      expectedMac,
+      actualMac,
+    });
+    
+    // Broadcast error to web clients
+    this.broadcastToWebClients({
+      type: "module_configuration_error",
+      error,
+      expectedMac,
+      actualMac,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   private registerModule(ws: WebSocket, moduleId: string) {
     if (!moduleId) {
       ws.send(JSON.stringify({ error: "Module ID is required" }));
       return;
     }
+
+    console.log(`Registering module: ${moduleId}`);
 
     this.moduleConnections.set(moduleId, {
       ws,
@@ -212,18 +254,25 @@ class WebSocketService {
     });
 
     // Remove from available modules since it's now registered and configured
+    const wsId = this.generateWSId(ws);
+    let removedMacAddress: string | null = null;
+    
     for (const [macAddress, module] of this.availableModules.entries()) {
-      if (module.wsId === this.generateWSId(ws)) {
+      if (module.wsId === wsId) {
         this.availableModules.delete(macAddress);
+        removedMacAddress = macAddress;
         console.log(
-          `Configured module removed from available list: ${macAddress}`
+          `Configured module removed from available list: ${macAddress} -> ${moduleId}`
         );
-        this.broadcastToWebClients({
-          type: "available_modules_update",
-          modules: Array.from(this.availableModules.values()),
-        });
         break;
       }
+    }
+
+    if (removedMacAddress) {
+      this.broadcastToWebClients({
+        type: "available_modules_update",
+        modules: Array.from(this.availableModules.values()),
+      });
     }
 
     ws.send(
@@ -235,7 +284,7 @@ class WebSocketService {
     );
 
     console.log(
-      `Module ${moduleId} registered and removed from available modules`
+      `Module ${moduleId} registered successfully and removed from available modules`
     );
   }
 
@@ -340,7 +389,7 @@ class WebSocketService {
       capabilities,
     });
 
-    // Check if this module is already registered (configured)
+    // Check if this module is already registered (configured) by WebSocket ID
     const wsId = this.generateWSId(ws);
     for (const [moduleId, connection] of this.moduleConnections.entries()) {
       if (this.generateWSId(connection.ws) === wsId) {
@@ -575,11 +624,12 @@ class WebSocketService {
     console.log(`Configuring module ${macAddress} with moduleId: ${moduleId}`);
     console.log(`Locker IDs: ${lockerIds.join(", ")}`);
 
-    // Send configuration to module
+    // Send configuration to module with MAC address verification
     moduleWS.send(
       JSON.stringify({
         type: "module_configured",
         moduleId,
+        macAddress, // ✅ Include MAC address for verification
         lockerIds,
         timestamp: new Date().toISOString(),
       })

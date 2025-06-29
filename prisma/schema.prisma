@@ -42,7 +42,7 @@ model RegistrationCode {
   expiresAt DateTime @default(dbgenerated("(now() + interval '1 day')"))
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  admin     Admin?   @relation(fields: [adminId], references: [id])
+  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
   adminId   String?
 }
 
@@ -54,7 +54,7 @@ model Module {
   location    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  admin       Admin?   @relation(fields: [adminId], references: [id])
+  admin       Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
   adminId     String?
   lockers     Locker[]
 }
@@ -64,7 +64,7 @@ model Locker {
   lockerId     String
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
-  module       Module         @relation(fields: [moduleId], references: [id])
+  module       Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   moduleId     String
   LockerRental LockerRental[]
 }
@@ -77,6 +77,6 @@ model LockerRental {
   endDate   DateTime?
   expiresAt DateTime  @default(dbgenerated("(now() + interval '6 hours')"))
   isLocked  Boolean   @default(true)
-  locker    Locker    @relation(fields: [lockerId], references: [id])
-  user      User      @relation(fields: [userId], references: [id])
+  locker    Locker    @relation(fields: [lockerId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
