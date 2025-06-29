@@ -211,8 +211,10 @@ class WebSocketService {
 
   private handleConfigurationSuccess(message: any) {
     const { moduleId, macAddress } = message;
-    console.log(`Configuration success confirmed for module ${moduleId} (MAC: ${macAddress})`);
-    
+    console.log(
+      `Configuration success confirmed for module ${moduleId} (MAC: ${macAddress})`
+    );
+
     // Broadcast success to web clients
     this.broadcastToWebClients({
       type: "module_configuration_success",
@@ -228,7 +230,7 @@ class WebSocketService {
       expectedMac,
       actualMac,
     });
-    
+
     // Broadcast error to web clients
     this.broadcastToWebClients({
       type: "module_configuration_error",
@@ -256,7 +258,7 @@ class WebSocketService {
     // Remove from available modules since it's now registered and configured
     const wsId = this.generateWSId(ws);
     let removedMacAddress: string | null = null;
-    
+
     for (const [macAddress, module] of this.availableModules.entries()) {
       if (module.wsId === wsId) {
         this.availableModules.delete(macAddress);
