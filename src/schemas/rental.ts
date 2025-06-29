@@ -23,7 +23,6 @@ export const RentalResponseSchema = z.object({
   lockerId: z.string(),
   userId: z.string(),
   startDate: z.date(),
-  endDate: z.date().nullable(),
   expiresAt: z.date(),
   isLocked: z.boolean(),
   locker: z.object({

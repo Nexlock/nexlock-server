@@ -11,6 +11,7 @@ import authRoutes from "./src/routes/auth";
 import adminAuthRoutes from "./src/routes/adminAuth";
 import superadminModuleRoutes from "./src/routes/superadminModule";
 import adminModuleRoutes from "./src/routes/adminModule";
+import userModuleRoutes from "./src/routes/userModule";
 import rentalRoutes from "./src/routes/rental";
 import { errorHandler, notFoundHandler } from "./src/middleware/errorHandler";
 import { websocketService } from "./src/services/websocketService";
@@ -51,6 +52,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/admin", adminAuthRoutes);
 app.use("/api/v1/superadmin", superadminModuleRoutes);
 app.use("/api/v1/admin", adminModuleRoutes); // This mounts admin module routes at /api/v1/admin
+app.use("/api/v1", userModuleRoutes); // This mounts user module routes at /api/v1
 app.use("/api/v1", rentalRoutes);
 
 // Debug route to list all routes

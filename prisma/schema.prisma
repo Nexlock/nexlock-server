@@ -70,13 +70,12 @@ model Locker {
 }
 
 model LockerRental {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   lockerId  String
   userId    String
-  startDate DateTime  @default(now())
-  endDate   DateTime?
-  expiresAt DateTime  @default(dbgenerated("(now() + interval '6 hours')"))
-  isLocked  Boolean   @default(true)
-  locker    Locker    @relation(fields: [lockerId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate DateTime @default(now())
+  expiresAt DateTime @default(dbgenerated("(now() + interval '6 hours')"))
+  isLocked  Boolean  @default(true)
+  locker    Locker   @relation(fields: [lockerId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
