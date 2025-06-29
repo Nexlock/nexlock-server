@@ -86,7 +86,6 @@ export const getModuleById = async (
                 isLocked: true,
                 userId: true,
               },
-              take: 1,
             },
           },
           orderBy: { lockerId: "asc" },
