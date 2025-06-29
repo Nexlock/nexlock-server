@@ -211,6 +211,21 @@ class WebSocketService {
       lastPing: new Date(),
     });
 
+    // Remove from available modules since it's now registered and configured
+    for (const [macAddress, module] of this.availableModules.entries()) {
+      if (module.wsId === this.generateWSId(ws)) {
+        this.availableModules.delete(macAddress);
+        console.log(
+          `Configured module removed from available list: ${macAddress}`
+        );
+        this.broadcastToWebClients({
+          type: "available_modules_update",
+          modules: Array.from(this.availableModules.values()),
+        });
+        break;
+      }
+    }
+
     ws.send(
       JSON.stringify({
         type: "registered",
@@ -219,7 +234,9 @@ class WebSocketService {
       })
     );
 
-    console.log(`Module ${moduleId} registered`);
+    console.log(
+      `Module ${moduleId} registered and removed from available modules`
+    );
   }
 
   private handlePing(ws: WebSocket, moduleId: string) {
@@ -323,9 +340,20 @@ class WebSocketService {
       capabilities,
     });
 
+    // Check if this module is already registered (configured)
+    const wsId = this.generateWSId(ws);
+    for (const [moduleId, connection] of this.moduleConnections.entries()) {
+      if (this.generateWSId(connection.ws) === wsId) {
+        console.log(
+          `Module ${macAddress} is already configured as ${moduleId}, ignoring availability broadcast`
+        );
+        return;
+      }
+    }
+
     const availableModule: AvailableModule = {
       macAddress,
-      wsId: this.generateWSId(ws),
+      wsId,
       deviceInfo,
       version,
       capabilities,
@@ -540,16 +568,18 @@ class WebSocketService {
       })
     );
 
-    // Remove from available modules
+    // Remove from available modules immediately
     this.availableModules.delete(macAddress);
 
-    // Broadcast update
+    // Broadcast update to remove from available modules list
     this.broadcastToWebClients({
       type: "available_modules_update",
       modules: Array.from(this.availableModules.values()),
     });
 
-    console.log(`Module configured: ${macAddress} -> ${moduleId}`);
+    console.log(
+      `Module configured and removed from available list: ${macAddress} -> ${moduleId}`
+    );
     return true;
   }
 

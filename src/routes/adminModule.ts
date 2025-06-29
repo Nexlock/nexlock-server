@@ -12,27 +12,40 @@ import {
   getRentalHistory,
 } from "../controllers/adminModuleController";
 import { authenticateAdmin } from "../middleware/adminAuth";
-import { validateBody, validateParams } from "../utils/validation";
+import { validateBody } from "../utils/validation";
 import { UpdateModuleSchema } from "../schemas/module";
-import { z } from "zod";
 
 const router = Router();
 
 router.use(authenticateAdmin);
 
+// Debug middleware to log all requests
+router.use((req, res, next) => {
+  console.log(`Admin Module Route: ${req.method} ${req.path}`);
+  console.log(`Full URL: ${req.originalUrl}`);
+  console.log(`Query params:`, req.query);
+  next();
+});
+
 // Module routes
 router.get("/modules", getModules);
 router.get("/modules/:id", getModuleById);
 router.patch("/modules/:id", validateBody(UpdateModuleSchema), updateModule);
-
-// Locker routes
 router.get("/modules/:moduleId/lockers", getLockersByModule);
-router.get("/lockers/:lockerId", getLockerById);
-router.get("/lockers/status", getLockerStatuses);
-router.get("/lockers/stats", getLockerStats);
-router.post("/lockers/:lockerId/unlock", adminUnlockLocker);
-router.get("/lockers/:lockerId/rentals", getRentalHistory);
 
+// Admin locker management routes - use a different prefix
+router.get("/admin/lockers/status", getLockerStatuses);
+router.get("/admin/lockers/stats", getLockerStats);
+
+// Individual locker routes
+router.get("/lockers/:lockerId", getLockerById);
+router.get("/lockers/:lockerId/rentals", getRentalHistory);
+router.post("/lockers/:lockerId/unlock", adminUnlockLocker);
+
+// Rental routes
+router.post("/rentals/force-checkout", forceCheckoutRental);
+
+export default router;
 // Rental routes
 router.post("/rentals/force-checkout", forceCheckoutRental);
 

@@ -40,12 +40,46 @@ app.get("/", (_req, res) => {
   res.send("Hello, World!");
 });
 
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.url}`);
+  next();
+});
+
 // Authentication routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/admin", adminAuthRoutes);
 app.use("/api/v1/superadmin", superadminModuleRoutes);
-app.use("/api/v1/admin", adminModuleRoutes);
+app.use("/api/v1/admin", adminModuleRoutes); // This mounts admin module routes at /api/v1/admin
 app.use("/api/v1", rentalRoutes);
+
+// Debug route to list all routes
+app.get("/debug/routes", (req, res) => {
+  const routes: any[] = [];
+
+  app._router.stack.forEach((middleware: any) => {
+    if (middleware.route) {
+      routes.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods),
+      });
+    } else if (middleware.name === "router") {
+      const routerPath = middleware.regexp.source
+        .replace("\\/?(?=\\/|$)", "")
+        .replace("^", "");
+      middleware.handle.stack.forEach((handler: any) => {
+        if (handler.route) {
+          routes.push({
+            path: routerPath + handler.route.path,
+            methods: Object.keys(handler.route.methods),
+          });
+        }
+      });
+    }
+  });
+
+  res.json(routes);
+});
 
 // Error handling middleware (must be last)
 app.use(notFoundHandler);
