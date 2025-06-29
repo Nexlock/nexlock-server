@@ -343,7 +343,7 @@ class WebSocketService {
               id: statusUpdate.moduleId, // ✅ Use module.id for consistency
             },
           },
-          endDate: null,
+          expiresAt: { gte: new Date() }, // Only update active rentals
         },
         data: {
           isLocked,
