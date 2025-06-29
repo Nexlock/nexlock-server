@@ -29,8 +29,8 @@ router.delete(
   deleteRegistrationCode
 );
 // Registration endpoint - NO AUTH REQUIRED since we're creating the admin account
-router.post("/register", validateBody(RegisterAdminSchema), registerAdmin);
-router.post("/login", validateBody(LoginSchema), loginAdmin);
+router.post("/auth/register", validateBody(RegisterAdminSchema), registerAdmin);
+router.post("/auth/login", validateBody(LoginSchema), loginAdmin);
 router.get("/me", authenticateAdmin, getCurrentAdmin);
 
 export default router;
