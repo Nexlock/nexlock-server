@@ -16,7 +16,7 @@ import {
 
 const router = Router();
 
-// Superadmin endpoint - no admin auth required, uses secret validation
+// Superadmin endpoint - uses secret validation in controller, NO AUTH MIDDLEWARE
 router.post(
   "/registration-codes",
   validateBody(CreateRegistrationCodeSchema),
