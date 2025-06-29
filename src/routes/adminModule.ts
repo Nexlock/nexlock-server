@@ -33,9 +33,9 @@ router.get("/modules/:id", getModuleById);
 router.patch("/modules/:id", validateBody(UpdateModuleSchema), updateModule);
 router.get("/modules/:moduleId/lockers", getLockersByModule);
 
-// Admin locker management routes - use a different prefix
-router.get("/admin/lockers/status", getLockerStatuses);
-router.get("/admin/lockers/stats", getLockerStats);
+// Locker status and stats routes - moved to top level
+router.get("/lockers/status", getLockerStatuses);
+router.get("/lockers/stats", getLockerStats);
 
 // Individual locker routes
 router.get("/lockers/:lockerId", getLockerById);

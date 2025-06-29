@@ -421,7 +421,7 @@ export const getLockerStatuses = async (
     const allStatuses = websocketService.getLockerStatuses();
 
     // Filter statuses for modules belonging to this admin using module.id
-    const adminModuleIds = modules.map((m) => m.id); // ✅ Use module.id for WebSocket lookups
+    const adminModuleIds = modules.map((m) => m.id);
     const adminStatuses = allStatuses.filter((status) =>
       adminModuleIds.includes(status.moduleId)
     );
@@ -433,7 +433,7 @@ export const getLockerStatuses = async (
       deviceId: module.deviceId,
       lockers: module.lockers.map((locker) => {
         const status = adminStatuses.find(
-          (s) => s.moduleId === module.id && s.lockerId === locker.lockerId // ✅ Use module.id for status matching
+          (s) => s.moduleId === module.id && s.lockerId === locker.lockerId
         );
         return {
           id: locker.id,
