@@ -4,6 +4,7 @@ import type {
   CreateModuleRequest,
   EditModuleRequest,
   CreateAdminWithSystemRequest,
+  CreateAdminOnlyRequest,
   LockerResponse,
   DeleteModuleRequest,
   PairModuleRequest,
@@ -450,6 +451,47 @@ export const pairModule = async (
         lockers,
       },
       message: "Module paired and configured successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createAdminOnly = async (
+  req: Request<{}, {}, CreateAdminOnlyRequest>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { name, email, secret } = req.body;
+    const superAdminSecret = process.env.SUPERADMIN_SECRET;
+
+    if (!superAdminSecret) {
+      res.status(500).json({ error: "Server configuration error" });
+      return;
+    }
+
+    if (secret !== superAdminSecret) {
+      res.status(403).json({ error: "Invalid super admin secret" });
+      return;
+    }
+
+    // Create admin without modules
+    const admin = await prisma.admin.create({
+      data: {
+        name: name || null,
+        email: email || null,
+      },
+    });
+
+    res.status(201).json({
+      admin: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        createdAt: admin.createdAt,
+        updatedAt: admin.updatedAt,
+      },
     });
   } catch (error) {
     next(error);

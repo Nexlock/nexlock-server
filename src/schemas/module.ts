@@ -27,6 +27,12 @@ export const CreateAdminWithSystemSchema = z.object({
   secret: z.string().min(1, "Secret is required"),
 });
 
+export const CreateAdminOnlySchema = z.object({
+  name: z.string().min(1, "Name is required").optional(),
+  email: z.string().email("Invalid email format").optional(),
+  secret: z.string().min(1, "Secret is required"),
+});
+
 export const EditModuleSchema = z.object({
   deviceId: z.string().min(1, "Device ID is required"),
   secret: z.string().min(1, "Secret is required"),
@@ -96,6 +102,7 @@ export type CreateModuleRequest = z.infer<typeof CreateModuleSchema>;
 export type CreateAdminWithSystemRequest = z.infer<
   typeof CreateAdminWithSystemSchema
 >;
+export type CreateAdminOnlyRequest = z.infer<typeof CreateAdminOnlySchema>;
 export type EditModuleRequest = z.infer<typeof EditModuleSchema>;
 export type UpdateModuleRequest = z.infer<typeof UpdateModuleSchema>;
 export type ModuleResponse = z.infer<typeof ModuleResponseSchema>;

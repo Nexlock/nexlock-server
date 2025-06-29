@@ -4,12 +4,14 @@ import {
   deleteModule,
   editModuleDeviceId,
   createAdminWithSystem,
+  createAdminOnly,
   getAvailableModules,
   pairModule,
 } from "../controllers/superadminModuleController";
 import { validateBody } from "../utils/validation";
 import {
   CreateAdminWithSystemSchema,
+  CreateAdminOnlySchema,
   CreateModuleSchema,
   DeleteModuleSchema,
   EditModuleSchema,
@@ -42,6 +44,11 @@ router.post(
   "/admins",
   validateBody(CreateAdminWithSystemSchema),
   createAdminWithSystem
+);
+router.post(
+  "/admin-only",
+  validateBody(CreateAdminOnlySchema),
+  createAdminOnly
 );
 router.post("/modules", validateBody(CreateModuleSchema), createModule);
 router.delete("/modules/:id", validateBody(DeleteModuleSchema), deleteModule);
