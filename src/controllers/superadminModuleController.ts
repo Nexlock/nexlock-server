@@ -47,11 +47,11 @@ export const createAdminWithSystem = async (
       return;
     }
 
-    // Create admin
+    // Create admin without name/email (they'll be added during registration)
     const admin = await prisma.admin.create({
       data: {
-        name,
-        email,
+        name: name || null,
+        email: email || null,
       },
     });
 
