@@ -18,13 +18,13 @@ const router = Router();
 
 // Superadmin endpoint - uses secret validation in controller, NO AUTH MIDDLEWARE
 router.post(
-  "/registration-codes",
+  "/auth/registration-codes",
   validateBody(CreateRegistrationCodeSchema),
   createRegistrationCode
 );
 // Admin endpoint - requires admin auth
 router.delete(
-  "/registration-codes/:code",
+  "/auth/registration-codes/:code",
   authenticateAdmin,
   deleteRegistrationCode
 );
