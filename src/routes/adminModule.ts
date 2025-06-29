@@ -46,7 +46,3 @@ router.post("/lockers/:lockerId/unlock", adminUnlockLocker);
 router.post("/rentals/force-checkout", forceCheckoutRental);
 
 export default router;
-// Rental routes
-router.post("/rentals/force-checkout", forceCheckoutRental);
-
-export default router;
