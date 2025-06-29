@@ -16,18 +16,20 @@ import {
 
 const router = Router();
 
+// Superadmin endpoint - no admin auth required, uses secret validation
 router.post(
-  "/registration-codes",
+  "/auth/registration-codes",
   validateBody(CreateRegistrationCodeSchema),
   createRegistrationCode
 );
+// Admin endpoint - requires admin auth
 router.delete(
-  "/registration-codes/:code",
+  "/auth/registration-codes/:code",
   authenticateAdmin,
   deleteRegistrationCode
 );
-router.post("/register", validateBody(RegisterAdminSchema), registerAdmin);
-router.post("/login", validateBody(LoginSchema), loginAdmin);
-router.get("/me", authenticateAdmin, getCurrentAdmin);
+router.post("/auth/register", validateBody(RegisterAdminSchema), registerAdmin);
+router.post("/auth/login", validateBody(LoginSchema), loginAdmin);
+router.get("/auth/me", authenticateAdmin, getCurrentAdmin);
 
 export default router;
