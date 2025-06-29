@@ -10,6 +10,7 @@ import {
   adminUnlockLocker,
   forceCheckoutRental,
   getRentalHistory,
+  getModuleStatus,
 } from "../controllers/adminModuleController";
 import { authenticateAdmin } from "../middleware/adminAuth";
 import { validateBody } from "../utils/validation";
@@ -30,6 +31,7 @@ router.use((req, res, next) => {
 // Module routes
 router.get("/modules", getModules);
 router.get("/modules/:id", getModuleById);
+router.get("/modules/:id/status", getModuleStatus);
 router.patch("/modules/:id", validateBody(UpdateModuleSchema), updateModule);
 router.get("/modules/:moduleId/lockers", getLockersByModule);
 

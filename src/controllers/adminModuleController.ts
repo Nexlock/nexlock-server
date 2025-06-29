@@ -35,7 +35,14 @@ export const getModules = async (
       orderBy: { createdAt: "desc" },
     });
 
-    res.status(200).json(modules);
+    // Add online status to each module
+    const connectedModules = websocketService.getConnectedModules();
+    const modulesWithStatus = modules.map((module) => ({
+      ...module,
+      isOnline: connectedModules.includes(module.id),
+    }));
+
+    res.status(200).json(modulesWithStatus);
   } catch (error) {
     next(error);
   }
@@ -77,7 +84,58 @@ export const getModuleById = async (
       return;
     }
 
-    res.status(200).json(module);
+    // Add online status
+    const connectedModules = websocketService.getConnectedModules();
+    const moduleWithStatus = {
+      ...module,
+      isOnline: connectedModules.includes(module.id),
+    };
+
+    res.status(200).json(moduleWithStatus);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getModuleStatus = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id } = req.params;
+    const user = req.user as AuthUser;
+
+    if (!user || user.type !== "admin") {
+      res.status(401).json({ error: "Admin access required" });
+      return;
+    }
+
+    // Verify module belongs to admin
+    const module = await prisma.module.findFirst({
+      where: {
+        id,
+        adminId: user.id,
+      },
+    });
+
+    if (!module) {
+      res.status(404).json({ error: "Module not found" });
+      return;
+    }
+
+    const connectedModules = websocketService.getConnectedModules();
+    const isOnline = connectedModules.includes(id);
+
+    // Get locker statuses for this module
+    const lockerStatuses = websocketService.getLockerStatuses(id);
+
+    res.status(200).json({
+      moduleId: id,
+      isOnline,
+      lastSeen: isOnline ? new Date() : null,
+      lockerStatuses,
+    });
   } catch (error) {
     next(error);
   }
