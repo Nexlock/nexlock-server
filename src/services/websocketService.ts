@@ -24,7 +24,7 @@ interface LockerStatus {
 
 interface AvailableModule {
   macAddress: string;
-  wsId: string;
+  ws: WebSocket; // Store WebSocket reference directly
   deviceInfo: string;
   version: string;
   capabilities: number;
@@ -261,11 +261,10 @@ class WebSocketService {
     });
 
     // Remove from available modules since it's now registered and configured
-    const wsId = this.generateWSId(ws);
     let removedMacAddress: string | null = null;
 
     for (const [macAddress, module] of this.availableModules.entries()) {
-      if (module.wsId === wsId) {
+      if (module.ws === ws) {
         this.availableModules.delete(macAddress);
         removedMacAddress = macAddress;
         console.log(
@@ -278,7 +277,15 @@ class WebSocketService {
     if (removedMacAddress) {
       this.broadcastToWebClients({
         type: "available_modules_update",
-        modules: Array.from(this.availableModules.values()),
+        modules: Array.from(this.availableModules.values()).map((module) => ({
+          macAddress: module.macAddress,
+          wsId: this.generateWSId(module.ws),
+          deviceInfo: module.deviceInfo,
+          version: module.version,
+          capabilities: module.capabilities,
+          discoveredAt: module.discoveredAt,
+          lastSeen: module.lastSeen,
+        })),
       });
     }
 
@@ -389,6 +396,7 @@ class WebSocketService {
     const { macAddress, deviceInfo, version, capabilities, timestamp } =
       message;
 
+    console.log("=== MODULE AVAILABLE DEBUG ===");
     console.log("Processing module_available:", {
       macAddress,
       deviceInfo,
@@ -396,12 +404,11 @@ class WebSocketService {
       capabilities,
     });
 
-    // Check if this module is already registered (configured) by WebSocket ID
-    const wsId = this.generateWSId(ws);
+    // Check if this module is already registered (configured) by WebSocket reference
     for (const [moduleId, connection] of this.moduleConnections.entries()) {
-      if (this.generateWSId(connection.ws) === wsId) {
+      if (connection.ws === ws) {
         console.log(
-          `Module ${macAddress} is already configured as ${moduleId}, ignoring availability broadcast`
+          `⚠️ Module ${macAddress} is already configured as ${moduleId}, ignoring availability broadcast`
         );
         return;
       }
@@ -410,16 +417,27 @@ class WebSocketService {
     // Also check if we already have this MAC address in available modules
     // and it's the same connection (to prevent duplicate entries)
     const existingModule = this.availableModules.get(macAddress);
-    if (existingModule && existingModule.wsId === wsId) {
-      // Just update the lastSeen timestamp
-      existingModule.lastSeen = new Date();
-      console.log(`Updated lastSeen for existing module: ${macAddress}`);
-      return;
+    if (existingModule) {
+      console.log(`Existing module found for MAC ${macAddress}:`, {
+        deviceInfo: existingModule.deviceInfo,
+        isSameWS: existingModule.ws === ws,
+      });
+      if (existingModule.ws === ws) {
+        // Just update the lastSeen timestamp
+        existingModule.lastSeen = new Date();
+        console.log(`⏰ Updated lastSeen for existing module: ${macAddress}`);
+        return;
+      } else {
+        console.log(
+          `🔄 Different connection for same MAC, updating WebSocket reference`
+        );
+      }
     }
 
     const availableModule: AvailableModule = {
       macAddress,
-      wsId,
+      // Store WebSocket reference directly
+      ws: ws,
       deviceInfo,
       version,
       capabilities,
@@ -431,16 +449,29 @@ class WebSocketService {
 
     this.availableModules.set(macAddress, availableModule);
 
-    console.log(`Available module updated: ${macAddress} (${deviceInfo})`);
-    console.log(`Total available modules: ${this.availableModules.size}`);
+    console.log(`✅ Available module updated: ${macAddress} (${deviceInfo})`);
+    console.log(`📊 Total available modules: ${this.availableModules.size}`);
+    console.log(
+      `📋 Current available modules: ${Array.from(
+        this.availableModules.keys()
+      )}`
+    );
 
-    // Broadcast to web clients
+    // Broadcast to web clients (convert ws to wsId for serialization)
     this.broadcastToWebClients({
       type: "available_modules_update",
-      modules: Array.from(this.availableModules.values()),
+      modules: Array.from(this.availableModules.values()).map((module) => ({
+        macAddress: module.macAddress,
+        wsId: this.generateWSId(module.ws), // Generate for display only
+        deviceInfo: module.deviceInfo,
+        version: module.version,
+        capabilities: module.capabilities,
+        discoveredAt: module.discoveredAt,
+        lastSeen: module.lastSeen,
+      })),
     });
 
-    console.log(`Broadcasted to ${this.webClients.size} web clients`);
+    console.log(`📡 Broadcasted to ${this.webClients.size} web clients`);
   }
 
   private handleDisconnect(ws: WebSocket) {
@@ -456,14 +487,22 @@ class WebSocketService {
       }
     }
 
-    // Remove from available modules
+    // Remove from available modules by WebSocket reference
     for (const [macAddress, module] of this.availableModules.entries()) {
-      if (module.wsId === this.generateWSId(ws)) {
+      if (module.ws === ws) {
         this.availableModules.delete(macAddress);
         console.log(`Available module removed: ${macAddress}`);
         this.broadcastToWebClients({
           type: "available_modules_update",
-          modules: Array.from(this.availableModules.values()),
+          modules: Array.from(this.availableModules.values()).map((module) => ({
+            macAddress: module.macAddress,
+            wsId: this.generateWSId(module.ws),
+            deviceInfo: module.deviceInfo,
+            version: module.version,
+            capabilities: module.capabilities,
+            discoveredAt: module.discoveredAt,
+            lastSeen: module.lastSeen,
+          })),
         });
         break;
       }
@@ -509,7 +548,15 @@ class WebSocketService {
 
         this.broadcastToWebClients({
           type: "available_modules_update",
-          modules: Array.from(this.availableModules.values()),
+          modules: Array.from(this.availableModules.values()).map((module) => ({
+            macAddress: module.macAddress,
+            wsId: this.generateWSId(module.ws),
+            deviceInfo: module.deviceInfo,
+            version: module.version,
+            capabilities: module.capabilities,
+            discoveredAt: module.discoveredAt,
+            lastSeen: module.lastSeen,
+          })),
         });
       }
     }
@@ -560,10 +607,20 @@ class WebSocketService {
   }
 
   private generateWSId(ws: WebSocket): string {
-    // Generate a unique ID for WebSocket connection using connection details
-    const remoteAddress = (ws as any)._socket?.remoteAddress || "unknown";
-    const remotePort = (ws as any)._socket?.remotePort || Math.random();
-    return `ws_${Date.now()}_${remoteAddress}_${remotePort}`;
+    // Use a more reliable method to generate WebSocket ID
+    const socket = (ws as any)._socket;
+    if (!socket) {
+      console.warn("⚠️ No socket found for WebSocket, using fallback ID");
+      return `ws_${Date.now()}_${Math.random()}`;
+    }
+
+    const remoteAddress = socket.remoteAddress || "unknown";
+    const remotePort = socket.remotePort || Math.random();
+    const localPort = socket.localPort || "unknown";
+
+    // Remove timestamp to make IDs consistent across calls
+    const wsId = `ws_${remoteAddress}_${remotePort}_${localPort}`;
+    return wsId;
   }
 
   sendLockUnlockMessage(message: LockUnlockMessage): boolean {
@@ -621,38 +678,34 @@ class WebSocketService {
       console.log("Available modules detail:");
       for (const [mac, module] of this.availableModules.entries()) {
         console.log(
-          `  - MAC: ${mac}, wsId: ${module.wsId}, deviceInfo: ${module.deviceInfo}`
+          `  - MAC: ${mac}, deviceInfo: ${module.deviceInfo}, wsConnected: ${
+            module.ws.readyState === WebSocket.OPEN
+          }`
         );
       }
       return false;
     }
 
     console.log(`✅ Found available module: ${macAddress}`);
-    console.log(`Module details:`, availableModule);
+    console.log(`Module details:`, {
+      macAddress: availableModule.macAddress,
+      deviceInfo: availableModule.deviceInfo,
+      version: availableModule.version,
+      capabilities: availableModule.capabilities,
+      wsReadyState: availableModule.ws.readyState,
+      wsOpen: availableModule.ws.readyState === WebSocket.OPEN,
+    });
 
-    // Find the WebSocket connection for this module
-    let moduleWS: WebSocket | null = null;
-    let wsClientCount = 0;
+    // Use the stored WebSocket reference directly
+    const moduleWS = availableModule.ws;
 
-    for (const client of this.wss?.clients || []) {
-      wsClientCount++;
-      const clientWsId = this.generateWSId(client);
-      console.log(
-        `Checking WS client ${wsClientCount}: wsId=${clientWsId}, target=${availableModule.wsId}`
+    if (moduleWS.readyState !== WebSocket.OPEN) {
+      console.error(
+        `❌ WebSocket connection is not open for module: ${macAddress}`
       );
-
-      if (clientWsId === availableModule.wsId) {
-        moduleWS = client;
-        console.log(`✅ Found matching WebSocket connection`);
-        break;
-      }
-    }
-
-    console.log(`Total WS clients: ${wsClientCount}`);
-
-    if (!moduleWS) {
-      console.error(`❌ WebSocket not found for module: ${macAddress}`);
-      console.log(`Target wsId: ${availableModule.wsId}`);
+      console.log(
+        `WebSocket ready state: ${moduleWS.readyState} (expected: ${WebSocket.OPEN})`
+      );
       return false;
     }
 
@@ -692,7 +745,15 @@ class WebSocketService {
     // Broadcast update to remove from available modules list
     this.broadcastToWebClients({
       type: "available_modules_update",
-      modules: Array.from(this.availableModules.values()),
+      modules: Array.from(this.availableModules.values()).map((module) => ({
+        macAddress: module.macAddress,
+        wsId: this.generateWSId(module.ws),
+        deviceInfo: module.deviceInfo,
+        version: module.version,
+        capabilities: module.capabilities,
+        discoveredAt: module.discoveredAt,
+        lastSeen: module.lastSeen,
+      })),
     });
 
     console.log(`✅ Configuration complete for ${macAddress}`);
@@ -726,7 +787,16 @@ class WebSocketService {
   }
 
   getAvailableModules(): AvailableModule[] {
-    return Array.from(this.availableModules.values());
+    // Convert for external consumption, keeping ws reference internal
+    return Array.from(this.availableModules.values()).map((module) => ({
+      macAddress: module.macAddress,
+      wsId: this.generateWSId(module.ws),
+      deviceInfo: module.deviceInfo,
+      version: module.version,
+      capabilities: module.capabilities,
+      discoveredAt: module.discoveredAt,
+      lastSeen: module.lastSeen,
+    })) as any[];
   }
 
   private isModuleMessage(messageType: string): boolean {
@@ -737,12 +807,24 @@ class WebSocketService {
       "pong",
       "status_update",
       "locker_status",
+      "configuration_success",
+      "configuration_error",
     ];
     return moduleMessageTypes.includes(messageType);
   }
 
   private sendAvailableModulesToClient(ws: WebSocket) {
-    const availableModules = Array.from(this.availableModules.values());
+    const availableModules = Array.from(this.availableModules.values()).map(
+      (module) => ({
+        macAddress: module.macAddress,
+        wsId: this.generateWSId(module.ws),
+        deviceInfo: module.deviceInfo,
+        version: module.version,
+        capabilities: module.capabilities,
+        discoveredAt: module.discoveredAt,
+        lastSeen: module.lastSeen,
+      })
+    );
     console.log(
       `Sending ${availableModules.length} available modules to client`
     );
