@@ -351,6 +351,15 @@ class WebSocketService {
       }
     }
 
+    // Also check if we already have this MAC address in available modules
+    // and it's the same connection (to prevent duplicate entries)
+    const existingModule = this.availableModules.get(macAddress);
+    if (existingModule && existingModule.wsId === wsId) {
+      // Just update the lastSeen timestamp
+      existingModule.lastSeen = new Date();
+      return;
+    }
+
     const availableModule: AvailableModule = {
       macAddress,
       wsId,
@@ -568,8 +577,11 @@ class WebSocketService {
       })
     );
 
-    // Remove from available modules immediately
+    // Remove from available modules immediately - don't wait for restart
     this.availableModules.delete(macAddress);
+    console.log(
+      `Module immediately removed from available list: ${macAddress} -> ${moduleId}`
+    );
 
     // Broadcast update to remove from available modules list
     this.broadcastToWebClients({
@@ -577,9 +589,6 @@ class WebSocketService {
       modules: Array.from(this.availableModules.values()),
     });
 
-    console.log(
-      `Module configured and removed from available list: ${macAddress} -> ${moduleId}`
-    );
     return true;
   }
 
