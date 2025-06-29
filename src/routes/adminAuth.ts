@@ -18,18 +18,19 @@ const router = Router();
 
 // Superadmin endpoint - no admin auth required, uses secret validation
 router.post(
-  "/auth/registration-codes",
+  "/registration-codes",
   validateBody(CreateRegistrationCodeSchema),
   createRegistrationCode
 );
 // Admin endpoint - requires admin auth
 router.delete(
-  "/auth/registration-codes/:code",
+  "/registration-codes/:code",
   authenticateAdmin,
   deleteRegistrationCode
 );
-router.post("/auth/register", validateBody(RegisterAdminSchema), registerAdmin);
-router.post("/auth/login", validateBody(LoginSchema), loginAdmin);
-router.get("/auth/me", authenticateAdmin, getCurrentAdmin);
+// Registration endpoint - NO AUTH REQUIRED since we're creating the admin account
+router.post("/register", validateBody(RegisterAdminSchema), registerAdmin);
+router.post("/login", validateBody(LoginSchema), loginAdmin);
+router.get("/me", authenticateAdmin, getCurrentAdmin);
 
 export default router;
