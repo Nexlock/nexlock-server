@@ -347,7 +347,7 @@ class WebSocketService {
               id: statusUpdate.moduleId,
             },
           },
-          endDate: null,
+          expiresAt: { gte: new Date() }, // Only update active rentals
         },
         data: {
           isLocked,

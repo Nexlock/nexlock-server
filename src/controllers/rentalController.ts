@@ -34,7 +34,7 @@ export const createRental = async (
       include: {
         module: true,
         LockerRental: {
-          where: { endDate: null },
+          where: { expiresAt: { gte: new Date() } },
         },
       },
     });
@@ -81,7 +81,6 @@ export const createRental = async (
       lockerId: rental.lockerId,
       userId: rental.userId,
       startDate: rental.startDate,
-      endDate: rental.endDate,
       expiresAt: rental.expiresAt,
       isLocked: rental.isLocked,
       locker: rental.locker,
@@ -110,7 +109,7 @@ export const lockUnlockRental = async (
       where: {
         id: rentalId,
         userId: user.id,
-        endDate: null,
+        expiresAt: { gte: new Date() }, // Ensure rental is active
       },
       include: {
         locker: {
@@ -179,7 +178,6 @@ export const lockUnlockRental = async (
       lockerId: updatedRental.lockerId,
       userId: updatedRental.userId,
       startDate: updatedRental.startDate,
-      endDate: updatedRental.endDate,
       expiresAt: updatedRental.expiresAt,
       isLocked: updatedRental.isLocked,
       locker: updatedRental.locker,
@@ -208,7 +206,7 @@ export const extendRental = async (
       where: {
         id: rentalId,
         userId: user.id,
-        endDate: null,
+        expiresAt: { gte: new Date() },
       },
       include: {
         locker: {
@@ -257,7 +255,6 @@ export const extendRental = async (
       lockerId: updatedRental.lockerId,
       userId: updatedRental.userId,
       startDate: updatedRental.startDate,
-      endDate: updatedRental.endDate,
       expiresAt: updatedRental.expiresAt,
       isLocked: updatedRental.isLocked,
       locker: updatedRental.locker,
@@ -286,7 +283,7 @@ export const checkoutRental = async (
       where: {
         id: rentalId,
         userId: user.id,
-        endDate: null,
+        expiresAt: { gte: new Date() },
       },
       include: {
         locker: {
@@ -306,7 +303,7 @@ export const checkoutRental = async (
     const updatedRental = await prisma.lockerRental.update({
       where: { id: rentalId },
       data: {
-        endDate: new Date(),
+        expiresAt: new Date(),
         isLocked: false,
       },
       include: {
@@ -337,7 +334,6 @@ export const checkoutRental = async (
       lockerId: updatedRental.lockerId,
       userId: updatedRental.userId,
       startDate: updatedRental.startDate,
-      endDate: updatedRental.endDate,
       expiresAt: updatedRental.expiresAt,
       isLocked: updatedRental.isLocked,
       locker: updatedRental.locker,
@@ -384,7 +380,6 @@ export const getUserRentals = async (
         lockerId: rental.lockerId,
         userId: rental.userId,
         startDate: rental.startDate,
-        endDate: rental.endDate,
         expiresAt: rental.expiresAt,
         isLocked: rental.isLocked,
         locker: rental.locker,

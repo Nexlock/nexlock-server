@@ -233,7 +233,7 @@ export const getLockersByModule = async (
           },
         },
         LockerRental: {
-          where: { endDate: null },
+          where: { expiresAt: { gte: new Date() } },
           include: {
             user: {
               select: {
@@ -260,7 +260,6 @@ export const getLockersByModule = async (
             id: locker.LockerRental[0].id,
             userId: locker.LockerRental[0].userId,
             startDate: locker.LockerRental[0].startDate,
-            endDate: locker.LockerRental[0].endDate,
             expiresAt: locker.LockerRental[0].expiresAt,
             isLocked: locker.LockerRental[0].isLocked,
             user: locker.LockerRental[0].user,
@@ -304,7 +303,7 @@ export const getLockerById = async (
           },
         },
         LockerRental: {
-          where: { endDate: null },
+          where: { expiresAt: { gte: new Date() } },
           include: {
             user: {
               select: {
@@ -335,7 +334,6 @@ export const getLockerById = async (
             id: locker.LockerRental[0].id,
             userId: locker.LockerRental[0].userId,
             startDate: locker.LockerRental[0].startDate,
-            endDate: locker.LockerRental[0].endDate,
             expiresAt: locker.LockerRental[0].expiresAt,
             isLocked: locker.LockerRental[0].isLocked,
             user: locker.LockerRental[0].user,
@@ -447,7 +445,7 @@ export const getLockerStats = async (
     // Get active rentals count
     const activeRentals = await prisma.lockerRental.count({
       where: {
-        endDate: null,
+        expiresAt: { gte: new Date() },
         locker: {
           module: whereClause,
         },
@@ -574,7 +572,7 @@ export const forceCheckoutRental = async (
     const rental = await prisma.lockerRental.findFirst({
       where: {
         id: rentalId,
-        endDate: null,
+        expiresAt: { gte: new Date() },
         locker: {
           module: {
             adminId: user.id,
@@ -599,7 +597,7 @@ export const forceCheckoutRental = async (
     await prisma.lockerRental.update({
       where: { id: rentalId },
       data: {
-        endDate: new Date(),
+        expiresAt: new Date(),
         isLocked: false,
       },
     });
@@ -665,7 +663,6 @@ export const getRentalHistory = async (
       id: rental.id,
       userId: rental.userId,
       startDate: rental.startDate,
-      endDate: rental.endDate,
       expiresAt: rental.expiresAt,
       isLocked: rental.isLocked,
       user: rental.user,
