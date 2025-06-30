@@ -338,7 +338,7 @@ class WebSocketService {
       // Update the rental record with the current lock status
       const isLocked = statusUpdate.status === "locked";
 
-      // Find and update the active rental
+      // Find and update the active rental using expiresAt
       const updatedRentals = await prisma.lockerRental.updateMany({
         where: {
           locker: {
@@ -347,7 +347,7 @@ class WebSocketService {
               id: statusUpdate.moduleId,
             },
           },
-          expiresAt: { gte: new Date() }, // Only update active rentals
+          expiresAt: { gte: new Date() }, // Use expiresAt to identify active rentals
         },
         data: {
           isLocked,

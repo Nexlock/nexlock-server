@@ -104,12 +104,12 @@ export const lockUnlockRental = async (
       return;
     }
 
-    // Find the rental
+    // Find the rental - active rentals have expiresAt in the future
     const rental = await prisma.lockerRental.findFirst({
       where: {
         id: rentalId,
         userId: user.id,
-        expiresAt: { gte: new Date() }, // Ensure rental is active
+        expiresAt: { gte: new Date() }, // Use expiresAt to identify active rentals
       },
       include: {
         locker: {
@@ -278,12 +278,12 @@ export const checkoutRental = async (
       return;
     }
 
-    // Find the rental
+    // Find the rental - active rentals have expiresAt in the future
     const rental = await prisma.lockerRental.findFirst({
       where: {
         id: rentalId,
         userId: user.id,
-        expiresAt: { gte: new Date() },
+        expiresAt: { gte: new Date() }, // Use expiresAt to identify active rentals
       },
       include: {
         locker: {
@@ -299,11 +299,11 @@ export const checkoutRental = async (
       return;
     }
 
-    // Update rental with end date and ensure it's unlocked
+    // Update rental by setting expiresAt to past date to mark as completed
     const updatedRental = await prisma.lockerRental.update({
       where: { id: rentalId },
       data: {
-        expiresAt: new Date(),
+        expiresAt: new Date(Date.now() - 1000), // Set to 1 second ago to mark as expired/completed
         isLocked: false,
       },
       include: {
@@ -323,7 +323,7 @@ export const checkoutRental = async (
 
     // Send unlock message to module for checkout using module.id for WebSocket routing
     await sendLockUnlockMessage({
-      moduleId: rental.locker.module.id, // ✅ Use raw module ID for WebSocket communication
+      moduleId: rental.locker.module.id,
       lockerId: rental.locker.lockerId,
       action: "unlock",
       timestamp: new Date(),

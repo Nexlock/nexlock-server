@@ -233,7 +233,7 @@ export const getLockersByModule = async (
           },
         },
         LockerRental: {
-          where: { expiresAt: { gte: new Date() } },
+          where: { expiresAt: { gte: new Date() } }, // Use expiresAt for active rentals
           include: {
             user: {
               select: {
@@ -303,7 +303,7 @@ export const getLockerById = async (
           },
         },
         LockerRental: {
-          where: { expiresAt: { gte: new Date() } },
+          where: { expiresAt: { gte: new Date() } }, // Use expiresAt for active rentals
           include: {
             user: {
               select: {
@@ -442,10 +442,10 @@ export const getLockerStats = async (
       },
     });
 
-    // Get active rentals count
+    // Get active rentals count using expiresAt
     const activeRentals = await prisma.lockerRental.count({
       where: {
-        expiresAt: { gte: new Date() },
+        expiresAt: { gte: new Date() }, // Use expiresAt for active rentals
         locker: {
           module: whereClause,
         },
@@ -572,7 +572,7 @@ export const forceCheckoutRental = async (
     const rental = await prisma.lockerRental.findFirst({
       where: {
         id: rentalId,
-        expiresAt: { gte: new Date() },
+        expiresAt: { gte: new Date() }, // Use expiresAt for active rentals
         locker: {
           module: {
             adminId: user.id,
@@ -593,11 +593,11 @@ export const forceCheckoutRental = async (
       return;
     }
 
-    // End the rental
+    // End the rental by setting expiresAt to past date
     await prisma.lockerRental.update({
       where: { id: rentalId },
       data: {
-        expiresAt: new Date(),
+        expiresAt: new Date(Date.now() - 1000), // Set to 1 second ago to mark as expired/completed
         isLocked: false,
       },
     });
