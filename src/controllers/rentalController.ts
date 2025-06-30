@@ -135,7 +135,22 @@ export const lockUnlockRental = async (
       return;
     }
 
-    // Update rental lock status
+    // Send lock/unlock message to module using module.id for WebSocket routing
+    const success = await sendLockUnlockMessage({
+      moduleId: rental.locker.module.id,
+      lockerId: rental.locker.lockerId,
+      action,
+      timestamp: new Date(),
+    });
+
+    if (!success) {
+      res
+        .status(503)
+        .json({ error: "Failed to communicate with locker module" });
+      return;
+    }
+
+    // Update rental lock status optimistically
     const isLocked = action === "lock";
     const updatedRental = await prisma.lockerRental.update({
       where: { id: rentalId },
@@ -155,20 +170,9 @@ export const lockUnlockRental = async (
       },
     });
 
-    // Send lock/unlock message to module using module.id for WebSocket routing
-    const success = await sendLockUnlockMessage({
-      moduleId: rental.locker.module.id, // ✅ Use raw module ID for WebSocket communication
-      lockerId: rental.locker.lockerId,
-      action,
-      timestamp: new Date(),
-    });
-
-    if (!success) {
-      res
-        .status(503)
-        .json({ error: "Failed to communicate with locker module" });
-      return;
-    }
+    console.log(
+      `Rental ${rentalId} ${action} command sent successfully, status updated to locked: ${isLocked}`
+    );
 
     res.status(200).json({
       id: updatedRental.id,

@@ -331,16 +331,20 @@ class WebSocketService {
         timestamp: new Date(message.timestamp),
       });
 
+      console.log(
+        `Processing status update: Module ${statusUpdate.moduleId}, Locker ${statusUpdate.lockerId}, Status: ${statusUpdate.status}`
+      );
+
       // Update the rental record with the current lock status
       const isLocked = statusUpdate.status === "locked";
 
-      // Find the module by ID (not deviceId) to match WebSocket connection mapping
-      await prisma.lockerRental.updateMany({
+      // Find and update the active rental
+      const updatedRentals = await prisma.lockerRental.updateMany({
         where: {
           locker: {
             lockerId: statusUpdate.lockerId,
             module: {
-              id: statusUpdate.moduleId, // ✅ Use module.id for consistency
+              id: statusUpdate.moduleId,
             },
           },
           endDate: null,
@@ -350,17 +354,31 @@ class WebSocketService {
         },
       });
 
-      // Broadcast to web clients
+      console.log(
+        `Updated ${updatedRentals.count} rental records for locker ${statusUpdate.lockerId}`
+      );
+
+      // Update locker occupancy status for real-time tracking
+      const statusKey = `${statusUpdate.moduleId}-${statusUpdate.lockerId}`;
+      this.lockerStatuses.set(statusKey, {
+        moduleId: statusUpdate.moduleId,
+        lockerId: statusUpdate.lockerId,
+        occupied: statusUpdate.status === "locked",
+        lastUpdate: statusUpdate.timestamp,
+      });
+
+      // Broadcast to web clients with detailed status information
       this.broadcastToWebClients({
         type: "locker_status_update",
         moduleId: statusUpdate.moduleId,
         lockerId: statusUpdate.lockerId,
         status: statusUpdate.status,
+        isLocked: isLocked,
         timestamp: statusUpdate.timestamp.toISOString(),
       });
 
       console.log(
-        `Updated locker ${statusUpdate.lockerId} status to ${statusUpdate.status} for module ${statusUpdate.moduleId}`
+        `Status update processed and broadcasted: ${statusUpdate.lockerId} is now ${statusUpdate.status}`
       );
     } catch (error) {
       console.error("Failed to handle status update:", error);
