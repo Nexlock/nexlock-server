@@ -367,7 +367,7 @@ class WebSocketService {
         lastUpdate: statusUpdate.timestamp,
       });
 
-      // Broadcast to web clients with detailed status information
+      // Broadcast to ALL web clients (including mobile apps) with detailed status information
       this.broadcastToWebClients({
         type: "locker_status_update",
         moduleId: statusUpdate.moduleId,
@@ -377,8 +377,18 @@ class WebSocketService {
         timestamp: statusUpdate.timestamp.toISOString(),
       });
 
+      // Also broadcast to ALL WebSocket clients (not just web clients)
+      this.broadcast({
+        type: "rental_status_update",
+        moduleId: statusUpdate.moduleId,
+        lockerId: statusUpdate.lockerId,
+        status: statusUpdate.status,
+        isLocked: isLocked,
+        timestamp: statusUpdate.timestamp.toISOString(),
+      });
+
       console.log(
-        `Status update processed and broadcasted: ${statusUpdate.lockerId} is now ${statusUpdate.status}`
+        `Status update processed and broadcasted to all clients: ${statusUpdate.lockerId} is now ${statusUpdate.status}`
       );
     } catch (error) {
       console.error("Failed to handle status update:", error);

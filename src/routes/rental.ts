@@ -6,6 +6,7 @@ import {
   checkoutRental,
   getUserRentals,
   getLockerStatuses,
+  getRentalStatus, // Add this import
 } from "../controllers/rentalController";
 import { authenticateUser } from "../middleware/auth";
 import { authenticateAdmin } from "../middleware/adminAuth";
@@ -27,6 +28,7 @@ router.post(
   createRental
 );
 router.get("/rentals", authenticateUser, getUserRentals);
+router.get("/rentals/:rentalId/status", authenticateUser, getRentalStatus); // Add this route
 router.post(
   "/rentals/lock-unlock",
   authenticateUser,

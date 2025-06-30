@@ -448,3 +448,58 @@ export const getLockerStatuses = async (
     next(error);
   }
 };
+
+export const getRentalStatus = async (
+  req: Request<{ rentalId: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { rentalId } = req.params;
+    const user = req.user as AuthUser;
+
+    if (!user || user.type !== "user") {
+      res.status(401).json({ error: "User access required" });
+      return;
+    }
+
+    // Find the rental
+    const rental = await prisma.lockerRental.findFirst({
+      where: {
+        id: rentalId,
+        userId: user.id,
+        expiresAt: { gte: new Date() }, // Active rental
+      },
+      include: {
+        locker: {
+          include: {
+            module: {
+              select: {
+                id: true,
+                name: true,
+                deviceId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!rental) {
+      res.status(404).json({ error: "Active rental not found" });
+      return;
+    }
+
+    res.status(200).json({
+      id: rental.id,
+      lockerId: rental.lockerId,
+      userId: rental.userId,
+      startDate: rental.startDate,
+      expiresAt: rental.expiresAt,
+      isLocked: rental.isLocked,
+      locker: rental.locker,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
